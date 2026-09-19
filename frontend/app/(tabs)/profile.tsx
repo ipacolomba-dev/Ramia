@@ -129,6 +129,7 @@ export default function ProfileTab() {
           {user.role === "admin" && (
             <MenuRow icon="shield-outline" label={t("profile.admin")} testID="menu-admin" onPress={() => router.push("/admin")} tint={colors.error} />
           )}
+          <MenuRow icon="information-circle-outline" label={t("profile.about")} testID="menu-about" onPress={() => router.push("/about")} />
         </View>
 
         <Pressable testID="logout-button" onPress={() => signOut()} style={styles.logoutBtn} accessibilityRole="button">

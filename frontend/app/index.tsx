@@ -84,6 +84,16 @@ export default function Welcome() {
             </>
           )}
         </View>
+        <Pressable
+          testID="welcome-about-link"
+          onPress={() => router.push("/about")}
+          style={styles.aboutLink}
+          hitSlop={10}
+          accessibilityRole="button"
+        >
+          <Ionicons name="information-circle-outline" size={16} color={colors.brandTertiary} />
+          <Text style={styles.aboutLinkText}>{t("welcome.about")}</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -110,4 +120,6 @@ const useStyles = makeStyles((colors: ThemeColors) => ({
   subtitle: { fontFamily: fonts.textBold, fontSize: 18, color: "#E5D4C0", marginTop: spacing.md },
   body: { fontFamily: fonts.text, fontSize: 14, color: "rgba(246,241,235,0.85)", marginTop: spacing.sm, lineHeight: 20 },
   ctaRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.xl },
+  aboutLink: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: spacing.lg },
+  aboutLinkText: { fontFamily: fonts.textBold, fontSize: 13, color: colors.brandTertiary, textDecorationLine: "underline" },
 }));
