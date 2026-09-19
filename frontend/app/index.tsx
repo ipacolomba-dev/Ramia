@@ -49,7 +49,7 @@ export default function Welcome() {
       <View style={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
         <View style={styles.wordmarkRow}>
           <Ionicons name="leaf" size={22} color={colors.brandTertiary} style={{ marginRight: spacing.sm }} />
-          <Text style={styles.overline}>SICILIA · MEDITERRANEO</Text>
+          <Text style={styles.overline}>MEDIAZIONE AGROALIMENTARE · SICILIA</Text>
         </View>
         <Text style={styles.title}>{t("app.name")}</Text>
         <Text style={styles.subtitle}>{t("app.welcome")}</Text>

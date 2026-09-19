@@ -5,10 +5,10 @@ import { storage } from "@/src/utils/storage";
 export type Lang = "it" | "en";
 
 const it: Record<string, string> = {
-  "app.name": "Sapori di Sicilia",
-  "app.tagline": "La dieta mediterranea siciliana, dal produttore alla tua tavola",
-  "app.welcome": "Benvenuto nell'orto di Sicilia",
-  "app.welcomeSub": "Prodotti autentici selezionati tra i migliori produttori dell'isola, spedizioni condivise e accordi commerciali con il mondo.",
+  "app.name": "’Ra mia",
+  "app.tagline": "Scopri la vera Sicilia",
+  "app.welcome": "Scopri la vera Sicilia",
+  "app.welcomeSub": "Mediazione agroalimentare indipendente tra eccellenze siciliane e mercati internazionali: selezioniamo i produttori e accompagniamo l'incontro tra chi produce e chi compra, in Italia e nel mondo.",
   "common.loading": "Caricamento…",
   "common.retry": "Riprova",
   "common.save": "Salva",
@@ -273,10 +273,10 @@ const it: Record<string, string> = {
 };
 
 const en: Record<string, string> = {
-  "app.name": "Sapori di Sicilia",
-  "app.tagline": "Sicilian Mediterranean diet, straight from producers to your table",
-  "app.welcome": "Welcome to Sicily's garden",
-  "app.welcomeSub": "Authentic products hand-picked from the island's finest producers, shared shipping and trade deals with the world.",
+  "app.name": "’Ra mia",
+  "app.tagline": "Discover the real Sicily",
+  "app.welcome": "Discover the real Sicily",
+  "app.welcomeSub": "Independent agri-food brokerage connecting Sicilian excellences with international markets: we select the producers and support the meeting between those who produce and those who buy, in Italy and worldwide.",
   "common.loading": "Loading…",
   "common.retry": "Retry",
   "common.save": "Save",

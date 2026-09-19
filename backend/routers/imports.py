@@ -121,7 +121,7 @@ async def notify_admin_products(producer: dict, products: list[dict], filename: 
             f'</tr>'
         )
     origin = f" dal catalogo <em>{escape(filename)}</em>" if filename else f" ({escape(source)})"
-    subject = f"Sapori di Sicilia — {len(products)} prodotti da approvare ({company})"
+    subject = f"’Ra mia — {len(products)} prodotti da approvare ({company})"
     html = (
         f'<table role="presentation" width="100%" style="max-width:600px;margin:0 auto">'
         f'<tr><td style="padding:24px;font-family:Arial,sans-serif">'
@@ -130,7 +130,7 @@ async def notify_admin_products(producer: dict, products: list[dict], filename: 
         f'ha aggiunto <strong>{len(products)}</strong> prodotti{origin}. '
         f'Accedi al pannello admin dell\'app per approvarli o rifiutarli.</p>'
         f'<table role="presentation" width="100%" style="border-collapse:collapse">{"".join(rows)}</table>'
-        f'<p style="font-size:12px;color:#7C6A5E;margin-top:20px">Inviata da Sapori di Sicilia. '
+        f'<p style="font-size:12px;color:#7C6A5E;margin-top:20px">Inviata da ’Ra mia — Scopri la vera Sicilia. '
         f'Non chiediamo mai password o dati di pagamento via email.</p>'
         f'</td></tr></table>'
     )

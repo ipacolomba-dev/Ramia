@@ -52,7 +52,7 @@ async def seed():
     admin = {
         "_id": str(uuid.uuid4()), "email": "admin@saporidisicilia.it",
         "password_hash": hash_password("SaporiAdmin2026!"), "name": "Curatore",
-        "role": "admin", "locale": "it", "featured_until": None, "company_name": "Sapori di Sicilia",
+        "role": "admin", "locale": "it", "featured_until": None, "company_name": "’Ra mia",
         "region": "Sicilia", "business_type": None, "specialty": None, "fleet_info": None,
         "created_at": now_utc(),
     }
