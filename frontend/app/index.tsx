@@ -3,6 +3,7 @@ import React from "react";
 import { Platform, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import { Image } from "expo-image";
 import Ionicons from "@react-native-vector-icons/ionicons";
 
 import { Img } from "@/src/components/Img";
@@ -48,9 +49,9 @@ export default function Welcome() {
       </View>
       <View style={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
         <View style={styles.wordmarkRow}>
-          <Ionicons name="leaf" size={22} color={colors.brandTertiary} style={{ marginRight: spacing.sm }} />
-          <Text style={styles.overline}>MEDIAZIONE AGROALIMENTARE · SICILIA</Text>
+          <Image source={require("../assets/images/logo-emblem.png")} style={styles.emblem} contentFit="contain" />
         </View>
+        <Text style={styles.overline}>MEDIAZIONE AGROALIMENTARE · SICILIA</Text>
         <Text style={styles.title}>{t("app.name")}</Text>
         <Text style={styles.subtitle}>{t("app.welcome")}</Text>
         <Text style={styles.body}>{t("app.welcomeSub")}</Text>
@@ -115,6 +116,7 @@ const useStyles = makeStyles((colors: ThemeColors) => ({
   langText: { fontFamily: fonts.textBold, fontSize: 12 },
   content: { flex: 1, justifyContent: "flex-end", paddingHorizontal: spacing.xl },
   wordmarkRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.md },
+  emblem: { width: 110, height: 110 },
   overline: { fontFamily: fonts.textBold, fontSize: 12, letterSpacing: 2, color: colors.brandTertiary },
   title: { fontFamily: fonts.display, fontSize: 44, color: "#F6F1EB", lineHeight: 50 },
   subtitle: { fontFamily: fonts.textBold, fontSize: 18, color: "#E5D4C0", marginTop: spacing.md },

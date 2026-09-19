@@ -3,6 +3,7 @@ import React from "react";
 import { Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import { Image } from "expo-image";
 import Ionicons from "@react-native-vector-icons/ionicons";
 
 import { Img } from "@/src/components/Img";
@@ -52,7 +53,7 @@ export default function About() {
           />
           <View style={styles.heroContent}>
             <View style={styles.leafRow}>
-              <Ionicons name="leaf" size={18} color={colors.brandTertiary} />
+              <Image source={require("../assets/images/logo-emblem.png")} style={styles.aboutEmblem} contentFit="contain" />
               <Text style={styles.overline}>{t("about.tagline").toUpperCase()}</Text>
             </View>
             <Text style={styles.wordmark}>’Ra mia</Text>
@@ -114,6 +115,7 @@ const useStyles = makeStyles((colors: ThemeColors) => ({
   heroScrim: { position: "absolute", width: "100%", height: "100%" },
   heroContent: { position: "absolute", bottom: 0, left: 0, right: 0, padding: spacing.xl },
   leafRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
+  aboutEmblem: { width: 72, height: 72 },
   overline: { fontFamily: fonts.textBold, fontSize: 11, letterSpacing: 2, color: colors.brandTertiary },
   wordmark: { fontFamily: fonts.display, fontSize: 40, color: "#F6F1EB", lineHeight: 44 },
   heroTitle: { fontFamily: fonts.textMedium, fontSize: 16, color: "#E5D4C0", marginTop: spacing.xs },
