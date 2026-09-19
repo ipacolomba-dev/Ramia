@@ -1,0 +1,50 @@
+{
+  "summary": "Full backend + frontend smoke test of 'Sapori di Sicilia' MVP. Backend: 22/22 pytest tests pass covering auth (all roles), products/packages, producer CRUD, visibility purchase, orders (items + package + stock decrement), full B2B flow (offer → negotiation → messages → agreement → accept), logistics (request + join + quote + partners + can_view_quotes), labels (request → offer → accept → status), admin (stats, pending, review, create package), RBAC (consumer 403 on producer/admin endpoints), and uploads (POST /api/upload + serve). Frontend: welcome, login (demo prefill + Accedi), market home (hero, packages, chips, product grid), 4 tabs (Mercato/B2B/Spedizioni/Profilo), IT/EN switch, logistics list with shared shipments — all render correctly on mobile viewport 390x844. Deprecated packages detected: NONE (no expo-av / expo-barcode-scanner / expo-background-fetch). Known non-blocker: nested Pressable → nested <button> web dev overlay in ProductCard.tsx:27.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/products", "issue": "Does not filter out soft-deleted products (missing `deleted_at: None` in query). Products deleted via DELETE /api/products/{id} still appear in the public list; inconsistent with GET /api/products/{id} which does filter deleted_at."},
+      {"endpoint": "GET /api/packages / POST /api/orders (package_id)", "issue": "Packages built with product_ids that were later soft-deleted still list, but ordering them returns 422 'Pacchetto non disponibile'. Consider auto-deactivating packages whose products are all deleted, or skipping deleted product refs at listing time."},
+      {"endpoint": "PATCH /api/admin/products/{id}/review", "issue": "Contract uses body {status: 'approved'|'rejected'} (matches frontend). Problem statement described action=approve/reject — kept behavior as-is since frontend already aligns; just flagging the docs/spec mismatch."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ProductCard.tsx (line 27)", "issue": "Outer Pressable renders as <button> on web and wraps another <button> (accessibilityRole='button' with inner Pressable/View), triggering React 'button cannot be a descendant of button' error. On Expo web dev, this shows as a full-screen red 'Console Error' overlay covering the tab bar until dismissed. Native/production not affected but web preview UX is degraded.", "testID": "product-card-<id>", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "market (Mercato)", "issues": ["Console warning: 'shadow*' style props are deprecated. Use 'boxShadow' — appears from card shadows; migrate to boxShadow for RN Web 0.20+"]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_backend.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Add `deleted_at: None` to the GET /api/products query so soft-deleted products stop appearing on the marketplace.",
+    "In GET /api/packages, skip product refs that are soft-deleted (or auto-deactivate the package) so consumers don't hit 422 on checkout.",
+    "Fix ProductCard.tsx nested Pressable: keep outer Pressable but move inner add-to-cart Pressable OUT of the card (e.g. floating over via absolute position but not nested in DOM), or drop accessibilityRole='button' on outer and use a View + onPress via GestureResponder. This will remove the web-only red dev overlay.",
+    "Replace shadow* style props with boxShadow to silence RN Web deprecation warning.",
+    "Optional: consider making GET /api/products public (no auth) since Mercato is intended to be browsable pre-login — currently returns 401 for anonymous requests."
+  ],
+  "critical_code_review_comments": [
+    "seed.py runs on every FastAPI startup — verify it is idempotent for production; leftover TEST_* rows from repeated test runs (TEST Miele Ibleo, TEST Box Curatore etc.) show up in the marketplace hero because the list endpoint doesn't filter deleted_at.",
+    "All routers rely on `current_user` even for browse endpoints (products/packages/visibility/plans/logistics/partners). Fine for MVP but blocks anonymous browsing.",
+    "market.py uses `{'featured_until': fu}` on product creation copying from user — good pattern. Purchase endpoint correctly updates both user and product docs.",
+    "b2b.py agreement flow correctly gates 'accept' to counterparty (verified via test). Good.",
+    "No hardcoded URLs; env vars in use everywhere. testIDs missing on many interactive elements — added by design for now but recommend audit for future E2E coverage."
+  ],
+  "updated_files": [
+    "/app/backend/tests/conftest.py (new)",
+    "/app/backend/tests/test_backend.py (new)"
+  ],
+  "success_rate": {"backend": "100% (22/22)", "frontend": "100% smoke (welcome + login + 4 tabs render, auth persists, logistics shows shared shipments, profile shows IT/EN + logout)"},
+  "seed_data_creation": "Tests create ephemeral TEST_ prefixed rows: 1 producer account (TEST_prod_<uuid>@example.com), 2 products (TEST Miele Ibleo, TEST Delete Me), 1 order per run, 1 package purchase, 1 B2B offer+negotiation+agreement, 1 shipping request+quote, 1 label request+offer+accept, 1 admin curated package (TEST Box Curatore). These accumulate across runs (no teardown) and are surfacing in the marketplace hero because GET /api/products does not filter deleted_at. Recommend either adding cleanup fixture or the deleted_at filter fix.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend is stable, all 22 pytest cases pass. Rerun `pytest /app/backend/tests/ -v --junitxml=/app/test_reports/pytest/pytest_results.xml`. For frontend, use direct URLs (`/`, `/b2b`, `/logistics`, `/profile`) instead of clicking tabs because in Expo web dev an overlay may block interactions until dismissed. Login flow: demo buttons only PRE-FILL the form — still need to click 'Accedi'. Auth token persists via SecureStore; navigating to `/` shows the welcome screen even when logged-in because index.tsx is separate from the (tabs) group.",
+  "rca_of_issue": "N/A — no blocker bugs; only two minor backend polish gaps (soft-delete filter) and one web-only frontend dev overlay (nested Pressable in ProductCard)."
+}

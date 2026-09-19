@@ -1,0 +1,172 @@
+{
+  "app_name": "Syllabus - Sapori di Sicilia",
+  "personality": "3 Editorial Mobile (con fusioni calde artigianali e tone-of-voice siciliano)",
+  "personality_one_liner": "Un mercato digitale dei sapori autentici di Sicilia, dove la tradizione artigianale incontra il commercio globale in un'esperienza calda, visiva e senza tempo.",
+  "color": {
+    "surface": "#F6F1EB",
+    "onSurface": "#2C221E",
+    "surfaceSecondary": "#FFFFFF",
+    "onSurfaceSecondary": "#2C221E",
+    "surfaceTertiary": "#EDE5DC",
+    "onSurfaceTertiary": "#5C4A3E",
+    "surfaceInverse": "#2C221E",
+    "onSurfaceInverse": "#F6F1EB",
+    "brand": "#C05632",
+    "brandPrimary": "#C05632",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#5E6C3A",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#E5D4C0",
+    "onBrandTertiary": "#4A382D",
+    "success": "#5E6C3A",
+    "onSuccess": "#FFFFFF",
+    "warning": "#D69E2E",
+    "onWarning": "#2C221E",
+    "error": "#9B2C2C",
+    "onError": "#FFFFFF",
+    "info": "#2B6CB0",
+    "onInfo": "#FFFFFF",
+    "border": "rgba(44, 34, 30, 0.12)",
+    "borderStrong": "rgba(44, 34, 30, 0.35)",
+    "divider": "rgba(44, 34, 30, 0.08)",
+    "muted": "#7C6A5E",
+    "onBrand": "#FFFFFF"
+  },
+  "typography": {
+    "displayFontFamily": "Playfair Display",
+    "textFontFamily": "DM Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Rhythm and breathing space inspired by Sicilian countryside and editorial layouts. Generous padding around editorial cards, compact density on B2B data tables.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+    "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Ionicons",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Use frosted glass on sticky search and bottom navigation bar over scrolling editorial catalogs",
+      "Apply translucent terracotta/olive tinted glass on featured B2C hero cards and B2B contract status banners"
+    ],
+    "dont's": [
+      "Never blur body copy or dense B2B negotiation message logs",
+      "Avoid heavy blur on data tables and logistic quote comparisons"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Home / Discovery",
+      "purpose": "Immerse user in Sicilian heritage with featured artisan products, seasonal packages (Blood Oranges, Olive Oil, Cannoli), and direct producer links.",
+      "states": {
+        "loading": "Centered terracotta spinner with warm parchment background",
+        "empty": "Illustration of ancient olive tree with reset filters button",
+        "error": "Warm terracotta error banner with retry action"
+      },
+      "layout": "Vertical editorial scroll with sticky header search, full-bleed hero banner with gradient scrim, horizontal category pills, 2-column artisan product grid with real logo badges."
+    },
+    {
+      "name": "Marketplace B2B",
+      "purpose": "Connect Sicilian producers with international distributors, wholesalers, and commercial agents for bulk orders and contracts.",
+      "states": {
+        "loading": "Skeleton rows for bulk order listings",
+        "empty": "No active B2B contracts or offers found",
+        "error": "Unable to load B2B marketplace. Tap to retry."
+      },
+      "layout": "Tabbed filter header (All, Bulk Wine, Citrus Pallets, Olive Oil Tanks), list of bulk listings with MOQs, negotiation status badges, and 'Inizia Trattativa' CTA."
+    },
+    {
+      "name": "Logistica Centralizzata",
+      "purpose": "Aggregate shipments among producers and buyers to lower freight costs across Italy and export markets.",
+      "states": {
+        "loading": "Freight container skeleton loader",
+        "empty": "Nessuna spedizione condivisa attiva nella tua zona",
+        "error": "Errore nel caricamento della rete logistica. Riprova."
+      },
+      "layout": "Route optimization map preview card, shared pallet pool list with fill percentage bars, quote comparison table from logistics partners, and 'Proponi Spedizioni' sticky button."
+    },
+    {
+      "name": "Adeguamento Etichette",
+      "purpose": "Expert-driven regulatory compliance hub where producers get labels checked for export markets (EU, USA, Asia).",
+      "states": {
+        "loading": "Document analysis loader with rotating compliance icon",
+        "empty": "Nessuna etichetta in fase di revisione",
+        "error": "Impossibile connettere ai consulenti normativi."
+      },
+      "layout": "List of submitted label designs with status badges (In Revisione, Approvata EU, Modifiche Richieste), collaborator proposal cards, and 'Carica Nuova Etichetta' floating action."
+    },
+    {
+      "name": "Dashboard Produttore & Admin",
+      "purpose": "Empower producers to manage autonomous catalog listings, purchase visibility booster packages, and admin curation.",
+      "states": {
+        "loading": "Dashboard metric cards skeleton",
+        "empty": "Nessun prodotto pubblicato o pacchetto attivo",
+        "error": "Errore di sincronizzazione con il catalogo produttore."
+      },
+      "layout": "Top stats summary (Sales, Visibility Boost, Pending Orders), active visibility packages carousel, product management inventory list, and admin approval queue."
+    }
+  ],
+  "images": {
+    "hero_olive_oil": {
+      "url": "https://images.unsplash.com/photo-1655299848851-40422297103c",
+      "dark": "https://images.unsplash.com/photo-1655299848851-40422297103c",
+      "alt": "Bottiglia di olio extravergine d'oliva artigianale siciliano"
+    },
+    "hero_citrus": {
+      "url": "https://images.unsplash.com/photo-138304861-citrus",
+      "dark": "https://images.unsplash.com/photo-138304861-citrus",
+      "alt": "Arance rosse di Sicilia fresche al mercato"
+    },
+    "hero_cannoli": {
+      "url": "https://images.unsplash.com/photo-1749767138348-2e5bf1cbcef2",
+      "dark": "https://images.unsplash.com/photo-1749767138348-2e5bf1cbcef2",
+      "alt": "Cannoli siciliani artigianali con ricotta e pistacchio"
+    },
+    "hero_wine": {
+      "url": "https://images.unsplash.com/photo-1567072629554-20e689de2400",
+      "dark": "https://images.unsplash.com/photo-1567072629554-20e689de2400",
+      "alt": "Vigneti siciliani al tramonto"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Adhere strictly to Personality 3 Editorial Mobile with Sicilian terracotta (#C05632), olive green (#5E6C3A), and warm parchment cream (#F6F1EB) surfaces.",
+    "Implement bilingual support (Italian + English) for B2B export markets with language switcher in headers.",
+    "Ensure every screen features loading, empty, and error states with full flex layout.",
+    "B2B negotiation flow includes simulated chat/offer counters and commercial agreement signatures.",
+    "Logistics centralization features shared pallet aggregation and freight cost comparison.",
+    "Label compliance section allows producers to upload label images and receive collaborator proposals.",
+    "Producer visibility packages allow boosting product listings with simulated payment checkout.",
+    "Zero tolerance for generic purple/indigo AI themes, emojis in system UI, or missing touch targets."
+  ]
+}
