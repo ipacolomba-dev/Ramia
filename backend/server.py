@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from db import client, db
-from routers import admin, auth, b2b, logistics, market, uploads
+from routers import admin, auth, b2b, imports, logistics, market, uploads
 from seed import seed
 from storage import init_storage
 
@@ -43,6 +43,7 @@ app.include_router(b2b.router, prefix=api_router_prefix)
 app.include_router(logistics.router, prefix=api_router_prefix)
 app.include_router(admin.router, prefix=api_router_prefix)
 app.include_router(uploads.router, prefix=api_router_prefix)
+app.include_router(imports.router, prefix=api_router_prefix)
 
 
 @app.get("/api")

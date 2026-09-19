@@ -83,6 +83,21 @@ export default function ProducerDashboard() {
           <Btn title={t("visibility.buy")} size="sm" testID="producer-boost-cta" onPress={() => router.push("/visibility")} />
         </View>
 
+        <View style={styles.actionsRow}>
+          <Pressable testID="producer-import-catalog" onPress={() => router.push("/import-catalog")} style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.88 }]} accessibilityRole="button">
+            <View style={[styles.actionIcon, { backgroundColor: colors.brandPrimary }]}>
+              <Ionicons name="document-attach" size={20} color={colors.onBrandPrimary} />
+            </View>
+            <Text style={styles.actionLabel}>{t("producer.importCatalog")}</Text>
+          </Pressable>
+          <Pressable testID="producer-labels-control" onPress={() => router.push("/producer-labels")} style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.88 }]} accessibilityRole="button">
+            <View style={[styles.actionIcon, { backgroundColor: colors.brandSecondary }]}>
+              <Ionicons name="document-text" size={20} color={colors.onBrandSecondary} />
+            </View>
+            <Text style={styles.actionLabel}>{t("producer.labelsControl")}</Text>
+          </Pressable>
+        </View>
+
         <Text style={styles.sectionTitle}>{t("producer.products")}</Text>
         {products.isLoading ? (
           <CenterLoader />
@@ -136,6 +151,19 @@ const useStyles = makeStyles((colors: ThemeColors) => ({
   },
   boostTitle: { fontFamily: fonts.textBold, fontSize: 15, color: colors.onBrandTertiary },
   boostSub: { fontFamily: fonts.text, fontSize: 12, color: colors.onBrandTertiary, marginTop: 2 },
+  actionsRow: { flexDirection: "row", gap: spacing.md, paddingHorizontal: spacing.lg, marginTop: spacing.md },
+  actionCard: {
+    flex: 1,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    alignItems: "flex-start",
+    gap: spacing.sm,
+  },
+  actionIcon: { width: 40, height: 40, borderRadius: radius.sm, alignItems: "center", justifyContent: "center" },
+  actionLabel: { fontFamily: fonts.textBold, fontSize: 13, color: colors.onSurface },
   sectionTitle: { fontFamily: fonts.display, fontSize: 20, color: colors.onSurface, paddingHorizontal: spacing.lg, marginTop: spacing.xl, marginBottom: spacing.sm },
   productRow: {
     flexDirection: "row",

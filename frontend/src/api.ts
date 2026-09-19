@@ -40,7 +40,30 @@ export function fullImgUrl(url?: string | null): string | null {
   return url;
 }
 
-/** Platform-correct multipart upload (web needs a real Blob, native needs {uri,name,type}). */
+/** Platform-correct PDF upload for catalog import. */
+export async function uploadPdf(uri: string, name = "catalogo.pdf"): Promise<{ imported: number; products: any[] }> {
+  const token = await storage.secureGet(TOKEN_KEY, "");
+  const form = new FormData();
+  if (Platform.OS === "web") {
+    const blob = await (await fetch(uri)).blob();
+    form.append("file", blob, name);
+  } else {
+    form.append("file", { uri, name, type: "application/pdf" } as any);
+  }
+  const res = await fetch(`${BASE}/products/import-pdf`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const detail = typeof data?.detail === "string" ? data.detail : "Import non riuscito";
+    throw new ApiError(detail, res.status);
+  }
+  return data as { imported: number; products: any[] };
+}
+
+/** Platform-correct multipart image upload (web needs a real Blob, native needs {uri,name,type}). */
 export async function uploadImage(uri: string, name = "foto.jpg"): Promise<{ url: string }> {
   const token = await storage.secureGet(TOKEN_KEY, "");
   const form = new FormData();

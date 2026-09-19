@@ -102,7 +102,10 @@ async def create_product(body: ProductIn, user: dict = Depends(require_roles("pr
         deleted_at=None,
     )
     await db.products.insert_one(product.to_mongo(include_id=True))
-    return await _serialize_product(product.to_mongo(include_id=True))
+    result = await _serialize_product(product.to_mongo(include_id=True))
+    from routers.imports import notify_admin_products
+    await notify_admin_products(user, [result], source="manuale")
+    return result
 
 
 @router.patch("/products/{product_id}")

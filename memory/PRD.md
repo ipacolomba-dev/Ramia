@@ -42,6 +42,14 @@ App mobile di compra-vendita di prodotti agroalimentari per promuovere la dieta 
 - [x] Etichette: richieste, proposte collaboratori, assegnazione, completamento
 - [x] Admin: statistiche, approvazione prodotti, creazione pacchetti curati
 - [x] i18n IT/EN, tema mediterraneo, font Playfair/DM Sans
+- [x] **Import catalogo PDF** (dashboard produttore): upload PDF → estrazione prodotti con Gemini 3 Flash → prodotti in stato pending → email di riepilogo all'admin (Resend gestito). Endpoint POST /api/products/import-pdf.
+- [x] **Notifica email** all'admin (NOTIFY_EMAIL) ad ogni aggiunta prodotti (import PDF + creazione manuale) con nome, etichetta/categoria, prezzo produttore e immagine.
+- [x] **Pagina controllo etichette** dedicata nella dashboard produttore (/producer-labels).
+
+## Integrations
+- Gemini 3 Flash (gemini-3-flash-preview) via emergentintegrations + EMERGENT_LLM_KEY — estrazione prodotti da PDF.
+- Emergent-managed Resend — email transazionali (EMERGENT_EMAIL_KEY, EMAIL_FROM_NAME, NOTIFY_EMAIL, opz. EMAIL_REPLY_TO).
+- NOTA: NOTIFY_EMAIL è impostata su delivered@resend.dev (indirizzo di test) finché l'utente non fornisce la sua email dedicata reale.
 
 ## Backlog
 ### P1
