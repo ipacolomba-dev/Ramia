@@ -19,6 +19,85 @@ export interface User {
   fleet_info?: string | null;
   featured_until?: string | null;
   created_at?: string | null;
+  approved?: boolean;
+  bio?: string | null;
+  bio_en?: string | null;
+  website?: string | null;
+  phone?: string | null;
+  city?: string | null;
+  logistics_service?: string | null;
+}
+
+export interface ProfileItem {
+  name: string;
+  year?: string | null;
+  place?: string | null;
+  image_url?: string | null;
+}
+
+export interface Billing {
+  legal_name?: string | null;
+  billing_address?: string | null;
+  billing_country?: string | null;
+  vat_number?: string | null;
+  tax_code?: string | null;
+  sdi_code?: string | null;
+  pec_email?: string | null;
+}
+
+export interface CompanyProfile {
+  id: string;
+  name: string;
+  role: string;
+  company_name: string;
+  region?: string | null;
+  bio?: string | null;
+  bio_en?: string | null;
+  website?: string | null;
+  phone?: string | null;
+  city?: string | null;
+  logistics_service?: string | null;
+  certifications: ProfileItem[];
+  awards: ProfileItem[];
+  fairs: ProfileItem[];
+  billing?: Billing;
+  products?: Product[];
+}
+
+export interface Earnings {
+  advertising: number;
+  sales_volume: number;
+  sales_commission: number;
+  logistics_volume: number;
+  logistics_commission: number;
+  labels_volume: number;
+  labels_commission: number;
+  total: number;
+  rates: { sales: number; logistics: number; labels: number };
+}
+
+export interface PendingAccount {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  company_name: string;
+  region?: string | null;
+  business_type?: string | null;
+  specialty?: string | null;
+  fleet_info?: string | null;
+}
+
+export interface AdvisorReply {
+  reply: string;
+  citations: string[];
+  live: boolean;
+}
+
+export interface AiSearchResult {
+  answer: string;
+  products: Product[];
+  shipment_id?: string | null;
 }
 
 export interface Product {
@@ -33,6 +112,12 @@ export interface Product {
   stock: number;
   image_url?: string | null;
   origin_region?: string | null;
+  price_wholesale?: number | null;
+  moq?: number | null;
+  unit_wholesale?: string | null;
+  pack_per_carton?: number | null;
+  cartons_per_layer?: number | null;
+  cartons_per_pallet?: number | null;
   producer_id: string;
   producer_name: string;
   company_name: string;
@@ -184,6 +269,8 @@ export interface ShippingRequest {
   pallets?: number | null;
   notes?: string | null;
   shared: boolean;
+  cold_chain?: boolean;
+  service_size?: string | null;
   creator_id: string;
   creator_name: string;
   creator_role: string;

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from db import db
 from models import QuoteIn, ShippingRequestIn, now_utc
-from security import current_user, require_roles
+from security import current_user, require_approved_roles, require_roles
 
 router = APIRouter(tags=["logistics"])
 
@@ -85,7 +85,7 @@ async def join_request(req_id: str, user: dict = Depends(require_roles("producer
 
 
 @router.post("/logistics/requests/{req_id}/quotes")
-async def add_quote(req_id: str, body: QuoteIn, user: dict = Depends(require_roles("logistics"))):
+async def add_quote(req_id: str, body: QuoteIn, user: dict = Depends(require_approved_roles("logistics"))):
     doc = await _get_request(req_id)
     quote = {
         "id": str(uuid.uuid4()),
@@ -110,6 +110,9 @@ async def list_partners(user: dict = Depends(current_user)):
             "company_name": d.get("company_name") or d.get("name", ""),
             "region": d.get("region", ""),
             "fleet_info": d.get("fleet_info", ""),
+            "logistics_service": d.get("logistics_service", ""),
+            "approved": d.get("approved", True),
         }
         for d in docs
+        if d.get("approved", True)
     ]

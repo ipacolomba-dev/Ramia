@@ -7,7 +7,7 @@ from models import (
     AgreementIn, AgreementRespondIn, B2BMessageIn, B2BOfferIn, LabelAcceptIn,
     LabelOfferIn, LabelRequestIn, LabelStatusIn, NegotiationStartIn, now_utc,
 )
-from security import current_user, require_roles
+from security import current_user, require_approved_roles, require_roles
 
 router = APIRouter(tags=["b2b"])
 
@@ -65,7 +65,7 @@ async def close_offer(offer_id: str, user: dict = Depends(require_roles("produce
 # ---------------- Negotiations ----------------
 
 @router.post("/b2b/offers/{offer_id}/negotiations")
-async def start_negotiation(offer_id: str, body: NegotiationStartIn, user: dict = Depends(require_roles("business"))):
+async def start_negotiation(offer_id: str, body: NegotiationStartIn, user: dict = Depends(require_approved_roles("business"))):
     offer = await get_offer(offer_id)
     existing = await db.negotiations.find_one({
         "offer_id": offer_id, "business_id": str(user["_id"]), "status": {"$ne": "closed"},
@@ -243,7 +243,7 @@ async def get_label_request(req_id: str, user: dict = Depends(current_user)):
 
 
 @router.post("/labels/requests/{req_id}/offers")
-async def create_label_offer(req_id: str, body: LabelOfferIn, user: dict = Depends(require_roles("collaborator"))):
+async def create_label_offer(req_id: str, body: LabelOfferIn, user: dict = Depends(require_approved_roles("collaborator"))):
     req = await _get_label_request(req_id)
     if req["status"] != "open":
         raise HTTPException(status_code=422, detail="Richiesta non più aperta")

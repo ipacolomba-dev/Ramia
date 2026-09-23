@@ -119,7 +119,19 @@ export default function ProfileTab() {
         </View>
 
         <View style={styles.menu}>
+          {user.approved === false && (
+            <View style={styles.pendingBanner} testID="pending-banner">
+              <Ionicons name="time-outline" size={18} color={colors.onWarning} />
+              <Text style={styles.pendingText}>{t("pending.banner")}</Text>
+            </View>
+          )}
           <MenuRow icon="receipt-outline" label={t("profile.orders")} testID="menu-orders" onPress={() => router.push("/orders")} />
+          {(user.role === "producer" || user.role === "business" || user.role === "logistics" || user.role === "collaborator") && (
+            <MenuRow icon="business-outline" label={t("profile.companyProfile")} testID="menu-company-profile" onPress={() => router.push("/company-profile")} />
+          )}
+          {(user.role === "producer" || user.role === "business") && (
+            <MenuRow icon="sparkles-outline" label={t("profile.advisor")} testID="menu-advisor" onPress={() => router.push("/advisor")} tint={colors.brandSecondary} />
+          )}
           {user.role === "producer" && (
             <>
               <MenuRow icon="create-outline" label={t("profile.dashboard")} testID="menu-producer-dashboard" onPress={() => router.push("/producer")} />
@@ -127,7 +139,10 @@ export default function ProfileTab() {
             </>
           )}
           {user.role === "admin" && (
-            <MenuRow icon="shield-outline" label={t("profile.admin")} testID="menu-admin" onPress={() => router.push("/admin")} tint={colors.error} />
+            <>
+              <MenuRow icon="shield-outline" label={t("profile.admin")} testID="menu-admin" onPress={() => router.push("/admin")} tint={colors.error} />
+              <MenuRow icon="cash-outline" label={t("profile.earnings")} testID="menu-earnings" onPress={() => router.push("/earnings")} tint={colors.brandSecondary} />
+            </>
           )}
           <MenuRow icon="information-circle-outline" label={t("profile.about")} testID="menu-about" onPress={() => router.push("/about")} />
         </View>
@@ -187,6 +202,8 @@ const useStyles = makeStyles((colors: ThemeColors) => ({
   langOption: { paddingHorizontal: spacing.md, paddingVertical: 5, borderRadius: radius.pill },
   langText: { fontFamily: fonts.textBold, fontSize: 12 },
   menu: { marginTop: spacing.lg },
+  pendingBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.warning, borderRadius: radius.md, padding: spacing.md, marginHorizontal: spacing.lg, marginBottom: spacing.sm },
+  pendingText: { flex: 1, fontFamily: fonts.textMedium, fontSize: 12, color: colors.onWarning, lineHeight: 16 },
   menuRow: {
     flexDirection: "row",
     alignItems: "center",

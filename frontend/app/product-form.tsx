@@ -35,6 +35,13 @@ export default function ProductForm() {
   const [description, setDescription] = useState("");
   const [descriptionEn, setDescriptionEn] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [priceWholesale, setPriceWholesale] = useState("");
+  const [moq, setMoq] = useState("");
+  const [packPerCarton, setPackPerCarton] = useState("");
+  const [cartonsPerLayer, setCartonsPerLayer] = useState("");
+  const [cartonsPerPallet, setCartonsPerPallet] = useState("");
+  const [aiDesc, setAiDesc] = useState("");
+  const [aiSheet, setAiSheet] = useState(false);
   const [error, setError] = useState("");
   const [permState, setPermState] = useState<"idle" | "explain" | "settings">("idle");
 
@@ -56,28 +63,30 @@ export default function ProductForm() {
       setDescription(p.description);
       setDescriptionEn(p.description_en ?? "");
       setImageUrl(p.image_url);
+      setPriceWholesale(p.price_wholesale != null ? String(p.price_wholesale) : "");
+      setMoq(p.moq != null ? String(p.moq) : "");
+      setPackPerCarton(p.pack_per_carton != null ? String(p.pack_per_carton) : "");
+      setCartonsPerLayer(p.cartons_per_layer != null ? String(p.cartons_per_layer) : "");
+      setCartonsPerPallet(p.cartons_per_pallet != null ? String(p.cartons_per_pallet) : "");
     }
   }, [existing.data]);
+
+  const buildBody = () => ({
+    name, name_en: nameEn || null, description, description_en: descriptionEn || null,
+    category, price: parseFloat(price.replace(",", ".")), unit,
+    stock: parseFloat(stock.replace(",", ".")), image_url: imageUrl,
+    price_wholesale: priceWholesale ? parseFloat(priceWholesale.replace(",", ".")) : null,
+    moq: moq ? parseFloat(moq.replace(",", ".")) : null,
+    pack_per_carton: packPerCarton ? parseInt(packPerCarton, 10) : null,
+    cartons_per_layer: cartonsPerLayer ? parseInt(cartonsPerLayer, 10) : null,
+    cartons_per_pallet: cartonsPerPallet ? parseInt(cartonsPerPallet, 10) : null,
+  });
 
   const mutation = useMutation({
     mutationFn: () =>
       isEdit
-        ? api(`/products/${id}`, {
-            method: "PATCH",
-            body: {
-              name, name_en: nameEn || null, description, description_en: descriptionEn || null,
-              category, price: parseFloat(price.replace(",", ".")), unit,
-              stock: parseFloat(stock.replace(",", ".")), image_url: imageUrl,
-            },
-          })
-        : api("/products", {
-            method: "POST",
-            body: {
-              name, name_en: nameEn || null, description, description_en: descriptionEn || null,
-              category, price: parseFloat(price.replace(",", ".")), unit,
-              stock: parseFloat(stock.replace(",", ".")), image_url: imageUrl,
-            },
-          }),
+        ? api(`/products/${id}`, { method: "PATCH", body: buildBody() })
+        : api("/products", { method: "POST", body: buildBody() }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["my-products"] });
@@ -85,6 +94,27 @@ export default function ProductForm() {
       router.back();
     },
     onError: (e: Error) => setError(e.message),
+  });
+
+  const aiDraft = useMutation({
+    mutationFn: () => api<any>("/ai/product-draft", { method: "POST", body: { description: aiDesc, category } }),
+    onSuccess: (d) => {
+      setName(d.name || name);
+      setNameEn(d.name_en || nameEn);
+      setDescription(d.description || description);
+      setDescriptionEn(d.description_en || descriptionEn);
+      if (d.category) setCategory(d.category);
+      if (d.price) setPrice(String(d.price));
+      if (d.unit) setUnit(d.unit);
+      if (d.price_wholesale) setPriceWholesale(String(d.price_wholesale));
+      if (d.moq) setMoq(String(d.moq));
+      if (d.pack_per_carton) setPackPerCarton(String(d.pack_per_carton));
+      if (d.cartons_per_pallet) setCartonsPerPallet(String(d.cartons_per_pallet));
+      setAiSheet(false);
+      setAiDesc("");
+      toast.show(t("productForm.aiApplied"));
+    },
+    onError: (e: Error) => toast.show(e.message, "error"),
   });
 
   const launchPicker = async () => {
@@ -142,6 +172,17 @@ export default function ProductForm() {
     <Screen style={{ paddingBottom: 0 }}>
       <ScreenHeader title={isEdit ? t("productForm.editTitle") : t("productForm.title")} onBack={() => router.back()} />
       <KeyboardAwareScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: 120 }} bottomOffset={90}>
+        <Pressable testID="product-ai-open" onPress={() => setAiSheet(true)} style={({ pressed }) => [styles.aiCard, pressed && { opacity: 0.9 }]} accessibilityRole="button">
+          <View style={styles.aiIcon}>
+            <Ionicons name="sparkles" size={18} color={colors.onBrandPrimary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.aiTitle}>{t("productForm.aiTitle")}</Text>
+            <Text style={styles.aiSub}>{t("productForm.aiDescribe")}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.brandPrimary} />
+        </Pressable>
+
         <Text style={styles.sectionLabel}>{t("productForm.photo")}</Text>
         <Pressable testID="product-photo-picker" onPress={onAddPhoto} style={styles.photoBox} accessibilityRole="button">
           {imageUrl ? (
@@ -215,6 +256,38 @@ export default function ProductForm() {
           <Input testID="product-form-description-en" value={descriptionEn} onChangeText={setDescriptionEn} multiline />
         </Field>
 
+        <Text style={styles.sectionLabel}>{t("productForm.wholesaleSection")}</Text>
+        <Text style={styles.wholesaleHint}>{t("wholesale.forBusiness")}</Text>
+        <View style={styles.row}>
+          <View style={{ flex: 1, marginRight: spacing.sm }}>
+            <Field label={t("productForm.priceWholesale")}>
+              <Input testID="product-form-price-wholesale" value={priceWholesale} onChangeText={setPriceWholesale} keyboardType="decimal-pad" placeholder="9.90" />
+            </Field>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Field label={t("productForm.moq")}>
+              <Input testID="product-form-moq" value={moq} onChangeText={setMoq} keyboardType="number-pad" placeholder="50" />
+            </Field>
+          </View>
+        </View>
+        <View style={styles.row}>
+          <View style={{ flex: 1, marginRight: spacing.sm }}>
+            <Field label={t("productForm.packPerCarton")}>
+              <Input testID="product-form-pack-carton" value={packPerCarton} onChangeText={setPackPerCarton} keyboardType="number-pad" placeholder="12" />
+            </Field>
+          </View>
+          <View style={{ flex: 1, marginRight: spacing.sm }}>
+            <Field label={t("productForm.cartonsPerLayer")}>
+              <Input testID="product-form-cartons-layer" value={cartonsPerLayer} onChangeText={setCartonsPerLayer} keyboardType="number-pad" placeholder="8" />
+            </Field>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Field label={t("productForm.cartonsPerPallet")}>
+              <Input testID="product-form-cartons-pallet" value={cartonsPerPallet} onChangeText={setCartonsPerPallet} keyboardType="number-pad" placeholder="48" />
+            </Field>
+          </View>
+        </View>
+
         {error ? (
           <Text style={styles.error} testID="product-form-error-text">
             {error}
@@ -235,6 +308,20 @@ export default function ProductForm() {
         </View>
       </KeyboardStickyView>
 
+      <Sheet visible={aiSheet} onClose={() => setAiSheet(false)} title={t("productForm.aiTitle")}>
+        <Text style={styles.sheetBody}>{t("productForm.aiDescribe")}</Text>
+        <Input testID="product-ai-input" value={aiDesc} onChangeText={setAiDesc} multiline placeholder={t("productForm.aiPlaceholder")} />
+        <Btn
+          title={t("productForm.aiGenerate")}
+          icon="sparkles"
+          testID="product-ai-generate"
+          loading={aiDraft.isPending}
+          onPress={() => aiDesc.trim().length >= 5 && aiDraft.mutate()}
+          style={{ marginTop: spacing.md }}
+        />
+        <Btn title={t("common.cancel")} variant="ghost" onPress={() => setAiSheet(false)} style={{ marginTop: spacing.sm }} />
+      </Sheet>
+
       <Sheet visible={permState === "explain"} onClose={() => setPermState("idle")} title={t("productForm.photo")}>
         <Text style={styles.sheetBody}>{t("productForm.photoHelp")}</Text>
         <Btn title={t("productForm.continue")} testID="photo-permission-continue" onPress={requestAndPick} />
@@ -251,6 +338,11 @@ export default function ProductForm() {
 
 const useStyles = makeStyles((colors: ThemeColors) => ({
   sectionLabel: { fontFamily: fonts.textBold, fontSize: 14, color: colors.onSurface, marginBottom: spacing.sm, marginTop: spacing.md },
+  wholesaleHint: { fontFamily: fonts.text, fontSize: 12, color: colors.muted, marginBottom: spacing.md },
+  aiCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.brandTertiary, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.md, marginBottom: spacing.sm },
+  aiIcon: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  aiTitle: { fontFamily: fonts.textBold, fontSize: 14, color: colors.onBrandTertiary },
+  aiSub: { fontFamily: fonts.text, fontSize: 12, color: colors.onBrandTertiary, marginTop: 1 },
   photoBox: { marginBottom: spacing.lg, borderRadius: radius.md, overflow: "hidden" },
   photo: { width: "100%", height: 180, borderRadius: radius.md },
   photoOverlay: {

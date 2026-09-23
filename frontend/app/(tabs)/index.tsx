@@ -103,6 +103,11 @@ export default function MarketHome() {
           onChangeText={setQuery}
           autoCapitalize="none"
         />
+        <Pressable testID="market-ai-search" onPress={() => router.push("/ai-search")} style={({ pressed }) => [styles.aiBanner, pressed && { opacity: 0.9 }]} accessibilityRole="button">
+          <Ionicons name="sparkles" size={18} color={colors.onBrandPrimary} />
+          <Text style={styles.aiBannerText}>{t("aiSearch.title")}</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.onBrandPrimary} />
+        </Pressable>
       </View>
 
       {hero && (
@@ -261,6 +266,8 @@ const useStyles = makeStyles((colors: ThemeColors) => ({
     paddingHorizontal: 4,
   },
   cartBadgeText: { color: colors.onBrandPrimary, fontSize: 10, fontFamily: fonts.textBold },
+  aiBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.brandSecondary, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginTop: spacing.sm },
+  aiBannerText: { flex: 1, fontFamily: fonts.textBold, fontSize: 14, color: colors.onBrandSecondary },
   hero: {
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,

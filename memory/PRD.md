@@ -1,66 +1,57 @@
-# Sapori di Sicilia — PRD
+# PRD — ’Ra mia (Mediazione agroalimentare)
 
-## Original Problem Statement
-App mobile di compra-vendita di prodotti agroalimentari per promuovere la dieta mediterranea e la tradizione siciliana. Legame diretto produttore↔consumatore, sezione B2B (agenti, distributori, grossisti, GDO italiani/esteri) con trattative e accordi commerciali, centralizzazione della logistica per abbassare i costi di spedizione, sezione adeguamento etichette con collaboratori esterni, reclutamento aziende di logistica. Produttori e consumatori si gestiscono in autonomia; l'admin cura pacchetti; i produttori pagano pacchetti di visibilità.
+## Problem statement
+App mobile (Expo/React Native + FastAPI + MongoDB) per la compravendita di prodotti agroalimentari siciliani, per promuovere la dieta mediterranea. Connette produttori e consumatori (B2C), abilita trattative B2B con grossisti/distributori, centralizza la logistica per abbassare i costi di spedizione, offre pacchetti visibilità a pagamento ai produttori, import cataloghi via AI con approvazione admin, e controllo/adeguamento etichette. Brand: "’Ra mia". Lingue: IT + EN.
 
-## User Choices
-- Lingua: Italiano + Inglese (switcher IT/EN in-app)
-- Pagamenti: checkout simulato (Stripe da attivare in seguito)
-- Visibilità: pagata dai produttori (boost prodotti)
-- Stile: Mediterraneo siciliano (terracotta, verde oliva, crema) — Editorial, Playfair Display + DM Sans
-- Foto prodotti: caricate dai produttori + catalogo demo iniziale
+## Architettura
+- Backend `/app/backend`: FastAPI + Motor (MongoDB async), JWT RBAC. Router: auth, market, b2b, logistics, admin, uploads, imports, **profiles**, **advisor**. AI via emergentintegrations (GPT-5.4 testo, Gemini per PDF). Email via Resend managed. Object storage Emergent per immagini. Perplexity Sonar predisposto (chiave `PERPLEXITY_API_KEY` vuota → fallback GPT-5.4).
+- Frontend `/app/frontend`: Expo Router file-based, react-query, i18n context, theme tokens in `src/theme.ts`.
 
-## Architecture
-- **Backend**: FastAPI + MongoDB (motor). Routers: auth, market, b2b, logistics, admin, uploads. JWT auth (RBAC, ruoli: consumer/producer/business/collaborator/logistics/admin). Emergent Object Storage per le foto. Seed automatico di dati demo.
-- **Frontend**: Expo Router (file-based). 4 tab: Mercato, B2B, Spedizioni, Profilo. React Query per i dati server, Context per auth/cart/i18n/toast. Tema in src/theme.ts.
+## Personas
+Consumatore, Produttore, Business (grossista/distributore/GDO), Collaboratore etichette, Azienda di logistica, Admin/Owner (curatore).
 
-## User Personas
-- Consumatore: compra prodotti autentici siciliani
-- Produttore: pubblica prodotti, compra visibilità, tratta B2B, chiede etichette/spedizioni
-- Business (agente/distributore/grossista/GDO): tratta e stipula accordi con produttori
-- Collaboratore etichette: propone servizi di conformità export
-- Azienda di logistica: quota le spedizioni condivise
-- Admin/curatore: approva prodotti, crea pacchetti curati
+## Core requirements (statici)
+- Marketplace B2C con checkout simulato + pacchetti curati.
+- Prodotto standard con dettaglio + ingrosso (prezzo ingrosso, MOQ, conf/cartone, cartoni/strato, cartoni/pallet).
+- Trattative B2B (offerte + negoziazione + accordo).
+- Logistica centralizzata condivisa con preventivi, catena del freddo, tipo trasporto.
+- Scheda azienda pubblica (bio, certificazioni, premi, fiere, contatti) + dati fatturazione.
+- Consulente Export AI (GPT-5.4 + Perplexity ready) con fonti e disclaimer.
+- Ricerca AI acquisti (match prodotti + risparmio via spedizioni condivise).
+- Import catalogo PDF via AI + bozza prodotto AI da descrizione.
+- Pacchetti visibilità produttori (checkout simulato).
+- Approvazione owner: prodotti, account business/collaboratore/logistica, pacchetti.
+- Pannello guadagni owner (pubblicità + 5% vendite + 1% logistica + 1% etichette) come resoconto.
+- i18n IT/EN, brand '’Ra mia', tema bordeaux/oro.
 
-## Core Requirements (static)
-1. Marketplace B2C con catalogo, carrello, checkout simulato, ordini
-2. Dashboard produttore: CRUD prodotti (con foto), stato approvazione, boost visibilità
-3. B2B: offerte all'ingrosso, trattative con messaggi, proposta/accettazione accordi
-4. Logistica centralizzata: richieste spedizione condivisibili, partecipanti, preventivi dai vettori
-5. Adeguamento etichette: richieste + proposte collaboratori + assegnazione + avanzamento
-6. Admin: approvazione prodotti, pacchetti curati, statistiche
-7. Bilingue IT/EN, pagamenti simulati
+## Implementato (2026-06)
+### Sessione precedente
+- Full stack, auth JWT RBAC, B2C + B2B + logistica + etichette + visibilità, import PDF (Gemini) + email, Chi siamo, integrazione logo/splash/icone.
+### Questa iterazione (2026-06)
+- Modello prodotto standard con campi ingrosso (backend + form + scheda prodotto). ✅
+- Scheda azienda pubblica + editor (certificazioni/premi/fiere) + dati fatturazione. ✅ (`/company-profile`, `/producer/[id]`, `/api/profiles/*`, `/api/producers/*`)
+- Consulente Export AI (GPT-5.4, Perplexity ready, fonti, disclaimer, storico). ✅ (`/advisor`, `/api/advisor/*`)
+- Ricerca AI acquisti con consiglio di risparmio + link spedizione condivisa. ✅ (`/ai-search`, `/api/ai/search`)
+- Bozza prodotto AI da descrizione. ✅ (`/api/ai/product-draft`, card in product-form)
+- Pannello guadagni owner. ✅ (`/earnings`, `/api/admin/earnings`)
+- Approvazione account business/collaboratore/logistica (pending + gate 403 + admin approva). ✅
+- Logistica: catena del freddo + tipo trasporto (piccoli/grandi). ✅
+- Seed arricchito (profili, certificazioni, premi, fiere, campi ingrosso, approved).
+- Test: 36/36 backend pass (`tests/test_iteration2.py`), flussi frontend verificati.
 
-## Implemented (2026-06)
-- [x] Auth JWT + RBAC, 8 account demo seed
-- [x] Marketplace: home editoriale (hero, pacchetti, chips categorie, griglia), dettaglio prodotto, carrello persistente
-- [x] Checkout simulato + storico ordini
-- [x] Dashboard produttore + form prodotto con upload foto (Object Storage) + permessi galleria
-- [x] Pacchetti visibilità (boost 7/30/90 gg) con pagamento simulato → featured
-- [x] B2B: offerte, trattative chat, proposta/accettazione accordi
-- [x] Logistica: partner, richieste condivise, join, preventivi
-- [x] Etichette: richieste, proposte collaboratori, assegnazione, completamento
-- [x] Admin: statistiche, approvazione prodotti, creazione pacchetti curati
-- [x] i18n IT/EN, tema mediterraneo, font Playfair/DM Sans
-- [x] **Import catalogo PDF** (dashboard produttore): upload PDF → estrazione prodotti con Gemini 3 Flash → prodotti in stato pending → email di riepilogo all'admin (Resend gestito). Endpoint POST /api/products/import-pdf.
-- [x] **Notifica email** all'admin (NOTIFY_EMAIL) ad ogni aggiunta prodotti (import PDF + creazione manuale) con nome, etichetta/categoria, prezzo produttore e immagine.
-- [x] **Pagina controllo etichette** dedicata nella dashboard produttore (/producer-labels).
-
-## Integrations
-- Gemini 3 Flash (gemini-3-flash-preview) via emergentintegrations + EMERGENT_LLM_KEY — estrazione prodotti da PDF.
-- Emergent-managed Resend — email transazionali (EMERGENT_EMAIL_KEY, EMAIL_FROM_NAME, NOTIFY_EMAIL, opz. EMAIL_REPLY_TO).
-- NOTA: NOTIFY_EMAIL è impostata su delivered@resend.dev (indirizzo di test) finché l'utente non fornisce la sua email dedicata reale.
-
-## Backlog
+## Backlog prioritizzato
 ### P1
-- Pagamenti reali con Stripe (consumatori + pacchetti visibilità)
-- Notifiche in-app per nuove offerte/trattative/preventivi
-- Recensioni prodotti e produttori
+- Stripe/Razorpay per pagamenti reali (ora checkout simulato) → attiva incassi reali del pannello guadagni.
+- Email dedicata reale per notifiche approvazione prodotti (ora `delivered@resend.dev`).
+- Attivare Perplexity Sonar (fornire `PERPLEXITY_API_KEY`) per dati web in tempo reale nel Consulente Export.
 ### P2
-- Mappa interattiva delle spedizioni condivise
-- Firma digitale accordi B2B (PDF)
-- Reclutamento logistica: onboarding vettori con verifica documenti
+- Contatti reali (email/telefono/città/social) in fondo a "Chi siamo".
+- Unificazione completa offerte B2B dentro il prodotto (ora coesistono product wholesale + offerte B2B).
+- Sezione reclutamento aziende logistica ampliata.
+- Indicatore "sto ragionando…" più evidente e timeout client più alto nel Consulente Export (latenza GPT-5.4).
 
-## Next Tasks
-- Attivare Stripe quando l'utente fornisce le chiavi
-- Ampliare traduzioni EN sui contenuti dinamici dei produttori
+## Note tecniche
+- DB preview resettato e riseminato in questa iterazione (dati demo). Prod diverge dopo primo deploy.
+- Datetime timezone-aware; safe-area via react-native-safe-area-context.
+- Ogni nuova stringa UI aggiunta in `src/i18n.tsx` (IT + EN).
+- `PERPLEXITY_API_KEY` vuota → advisor `live=false` (fallback conoscenza esperta).

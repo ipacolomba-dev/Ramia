@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
 
@@ -57,7 +57,7 @@ export default function ProducerDashboard() {
           </Pressable>
         }
       />
-      <View style={{ flex: 1 }}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xl }}>
         <View style={styles.statsRow} testID="producer-stats-row">
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{products.data?.length ?? 0}</Text>
@@ -98,6 +98,21 @@ export default function ProducerDashboard() {
           </Pressable>
         </View>
 
+        <View style={styles.actionsRow}>
+          <Pressable testID="producer-company-profile" onPress={() => router.push("/company-profile")} style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.88 }]} accessibilityRole="button">
+            <View style={[styles.actionIcon, { backgroundColor: colors.brandTertiary }]}>
+              <Ionicons name="business" size={20} color={colors.onBrandTertiary} />
+            </View>
+            <Text style={styles.actionLabel}>{t("profile.companyProfile")}</Text>
+          </Pressable>
+          <Pressable testID="producer-advisor" onPress={() => router.push("/advisor")} style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.88 }]} accessibilityRole="button">
+            <View style={[styles.actionIcon, { backgroundColor: colors.brandPrimary }]}>
+              <Ionicons name="sparkles" size={20} color={colors.onBrandPrimary} />
+            </View>
+            <Text style={styles.actionLabel}>{t("profile.advisor")}</Text>
+          </Pressable>
+        </View>
+
         <Text style={styles.sectionTitle}>{t("producer.products")}</Text>
         {products.isLoading ? (
           <CenterLoader />
@@ -129,7 +144,7 @@ export default function ProducerDashboard() {
             </Pressable>
           ))
         )}
-      </View>
+      </ScrollView>
     </Screen>
   );
 }

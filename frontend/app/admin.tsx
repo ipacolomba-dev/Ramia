@@ -10,7 +10,7 @@ import { Img } from "@/src/components/Img";
 import { Badge, Btn, CenterLoader, EmptyState, ErrorBanner, Field, Input, Screen, ScreenHeader, useToast } from "@/src/components/ui";
 import { useT } from "@/src/i18n";
 import { ThemeColors, fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
-import type { AdminStats, CuratedPackage, Product } from "@/src/types";
+import type { AdminStats, CuratedPackage, PendingAccount, Product } from "@/src/types";
 
 export default function Admin() {
   const { colors } = useTheme();
@@ -24,6 +24,17 @@ export default function Admin() {
   const stats = useQuery({ queryKey: ["admin-stats"], queryFn: () => api<AdminStats>("/admin/stats"), enabled: user?.role === "admin" });
   const pending = useQuery({ queryKey: ["admin-pending"], queryFn: () => api<Product[]>("/admin/pending-products"), enabled: user?.role === "admin" });
   const packages = useQuery({ queryKey: ["admin-packages"], queryFn: () => api<CuratedPackage[]>("/packages"), enabled: user?.role === "admin" });
+  const pendingAccounts = useQuery({ queryKey: ["admin-pending-accounts"], queryFn: () => api<PendingAccount[]>("/admin/accounts/pending"), enabled: user?.role === "admin" });
+
+  const reviewAccount = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: string }) => api(`/admin/accounts/${id}/review`, { method: "PATCH", body: { action } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-pending-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+      toast.show(t("toast.saved"));
+    },
+    onError: (e: Error) => toast.show(e.message, "error"),
+  });
 
   const [showForm, setShowForm] = useState(false);
   const [pName, setPName] = useState("");
@@ -91,6 +102,34 @@ export default function Admin() {
               </View>
             ))}
           </View>
+        )}
+
+        <Pressable testID="admin-earnings-link" onPress={() => router.push("/earnings")} style={({ pressed }) => [styles.earningsLink, pressed && { opacity: 0.9 }]} accessibilityRole="button">
+          <View style={[styles.menuIcon, { backgroundColor: colors.brandSecondary }]}>
+            <Ionicons name="cash" size={18} color={colors.onBrandSecondary} />
+          </View>
+          <Text style={styles.earningsLinkText}>{t("profile.earnings")}</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        </Pressable>
+
+        <Text style={styles.sectionTitle}>{t("accounts.title")}</Text>
+        <Text style={styles.accountsSub}>{t("accounts.sub")}</Text>
+        {(pendingAccounts.data ?? []).length === 0 ? (
+          <EmptyState icon="checkmark-done-outline" title={t("accounts.empty")} />
+        ) : (
+          (pendingAccounts.data ?? []).map((a) => (
+            <View key={a.id} style={styles.pendingCard} testID={`admin-account-${a.id}`}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pendingName} numberOfLines={1}>{a.company_name}</Text>
+                <Text style={styles.pendingMeta}>{t(`role.${a.role}`)} · {a.email}</Text>
+                {a.region ? <Text style={styles.pendingMeta}>{a.region}</Text> : null}
+                <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.md }}>
+                  <Btn title={t("accounts.approve")} size="sm" variant="secondary" testID={`admin-account-approve-${a.id}`} onPress={() => reviewAccount.mutate({ id: a.id, action: "approve" })} />
+                  <Btn title={t("accounts.reject")} size="sm" variant="danger" testID={`admin-account-reject-${a.id}`} onPress={() => reviewAccount.mutate({ id: a.id, action: "reject" })} />
+                </View>
+              </View>
+            </View>
+          ))
         )}
 
         <Text style={styles.sectionTitle}>{t("admin.pending")}</Text>
@@ -188,6 +227,10 @@ function ProductSelector({ selected, onToggle }: { selected: string[]; onToggle:
 
 const useStyles = makeStyles((colors: ThemeColors) => ({
   sectionTitle: { fontFamily: fonts.display, fontSize: 20, color: colors.onSurface, marginTop: spacing.lg },
+  earningsLink: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.divider, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.lg },
+  menuIcon: { width: 38, height: 38, borderRadius: radius.sm, alignItems: "center", justifyContent: "center", marginRight: spacing.md },
+  earningsLinkText: { flex: 1, fontFamily: fonts.textMedium, fontSize: 15, color: colors.onSurface },
+  accountsSub: { fontFamily: fonts.text, fontSize: 12, color: colors.muted, marginTop: 2, marginBottom: spacing.sm },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, marginTop: spacing.md },
   statCard: { width: "23%", minWidth: 76, flexGrow: 1, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.divider, borderRadius: radius.md, padding: spacing.md, alignItems: "center" },
   statValue: { fontFamily: fonts.textBold, fontSize: 20, color: colors.brandPrimary },

@@ -29,6 +29,8 @@ export default function ShippingForm() {
   const [pallets, setPallets] = useState("");
   const [notes, setNotes] = useState("");
   const [shared, setShared] = useState(true);
+  const [coldChain, setColdChain] = useState(false);
+  const [serviceSize, setServiceSize] = useState("grandi");
   const [error, setError] = useState("");
 
   const mutation = useMutation({
@@ -41,6 +43,7 @@ export default function ShippingForm() {
           weight_kg: weight ? parseFloat(weight.replace(",", ".")) : null,
           pallets: pallets ? parseInt(pallets, 10) : null,
           notes: notes || null, shared,
+          cold_chain: coldChain, service_size: serviceSize,
         },
       }),
     onSuccess: () => {
@@ -101,6 +104,21 @@ export default function ShippingForm() {
         <Field label={`${t("logisticsForm.notes")} (${t("common.optional")})`}>
           <Input testID="shipping-form-notes" value={notes} onChangeText={setNotes} multiline />
         </Field>
+        <Field label={t("logisticsForm.serviceSize")}>
+          <View style={styles.chipsRow}>
+            {["piccoli", "grandi"].map((s) => (
+              <Pressable key={s} testID={`shipping-form-service-${s}`} onPress={() => setServiceSize(s)} style={[styles.svcChip, serviceSize === s && { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary }]} accessibilityRole="button">
+                <Text style={[styles.svcChipText, serviceSize === s && { color: colors.onBrandPrimary }]}>{t(`svc.${s}`)}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </Field>
+        <Pressable testID="shipping-form-cold-toggle" onPress={() => setColdChain(!coldChain)} style={styles.sharedRow} accessibilityRole="button">
+          <View style={[styles.sharedBox, coldChain && { backgroundColor: colors.info, borderColor: colors.info }]}>
+            {coldChain && <Ionicons name="snow" size={14} color={colors.onInfo} />}
+          </View>
+          <Text style={styles.sharedText}>{t("logisticsForm.coldChain")}</Text>
+        </Pressable>
         <Pressable testID="shipping-form-shared-toggle" onPress={() => setShared(!shared)} style={styles.sharedRow} accessibilityRole="button">
           <View style={[styles.sharedBox, shared && { backgroundColor: colors.brandSecondary, borderColor: colors.brandSecondary }]}>
             {shared && <Ionicons name="checkmark" size={14} color={colors.onBrandSecondary} />}
@@ -120,6 +138,9 @@ export default function ShippingForm() {
 
 const useStyles = makeStyles((colors: ThemeColors) => ({
   subtitle: { fontFamily: fonts.text, fontSize: 13, color: colors.muted, marginBottom: spacing.lg, lineHeight: 19 },
+  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  svcChip: { borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: 6, backgroundColor: colors.surfaceSecondary },
+  svcChipText: { fontFamily: fonts.textMedium, fontSize: 12, color: colors.onSurfaceTertiary },
   sharedRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.lg },
   sharedBox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   sharedText: { fontFamily: fonts.textMedium, fontSize: 14, color: colors.onSurface, flex: 1 },

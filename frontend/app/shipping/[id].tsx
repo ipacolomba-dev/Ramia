@@ -88,6 +88,7 @@ export default function ShippingDetail() {
               <Text style={[styles.routeText, { color: colors.onBrandTertiary }]}>{req.destination}</Text>
             </View>
             {req.shared && <Badge label="SHARED" tone="info" />}
+            {req.cold_chain && <Badge label={t("logistics.coldChain")} tone="info" icon="snow" />}
           </View>
           <Text style={styles.title}>{req.title}</Text>
           <Text style={styles.meta}>

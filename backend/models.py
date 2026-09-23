@@ -77,6 +77,13 @@ class ProductIn(BaseModel):
     stock: float = Field(ge=0)
     image_url: Optional[str] = None
     origin_region: Optional[str] = None
+    # Wholesale / B2B (standard product model)
+    price_wholesale: Optional[float] = Field(None, ge=0)
+    moq: Optional[float] = Field(None, ge=0)
+    unit_wholesale: Optional[str] = None
+    pack_per_carton: Optional[int] = Field(None, ge=0)
+    cartons_per_layer: Optional[int] = Field(None, ge=0)
+    cartons_per_pallet: Optional[int] = Field(None, ge=0)
 
 
 class ProductDoc(BaseDocument):
@@ -90,6 +97,12 @@ class ProductDoc(BaseDocument):
     stock: float
     image_url: Optional[str] = None
     origin_region: Optional[str] = None
+    price_wholesale: Optional[float] = None
+    moq: Optional[float] = None
+    unit_wholesale: Optional[str] = None
+    pack_per_carton: Optional[int] = None
+    cartons_per_layer: Optional[int] = None
+    cartons_per_pallet: Optional[int] = None
     producer_id: str
     producer_name: str
     company_name: str
@@ -188,6 +201,8 @@ class ShippingRequestIn(BaseModel):
     pallets: Optional[int] = Field(None, ge=0)
     notes: Optional[str] = None
     shared: bool = True
+    cold_chain: bool = False
+    service_size: Optional[str] = None  # piccoli | grandi
 
 
 class QuoteIn(BaseModel):
@@ -217,3 +232,63 @@ class LabelAcceptIn(BaseModel):
 
 class LabelStatusIn(BaseModel):
     status: Literal["in_progress", "done"]
+
+
+# ----------------------------- Company profile & billing -----------------------------
+
+class ProfileItem(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    year: Optional[str] = None
+    place: Optional[str] = None
+    image_url: Optional[str] = None
+
+
+class BillingIn(BaseModel):
+    legal_name: Optional[str] = None
+    billing_address: Optional[str] = None
+    billing_country: Optional[str] = None
+    vat_number: Optional[str] = None
+    tax_code: Optional[str] = None
+    sdi_code: Optional[str] = None
+    pec_email: Optional[str] = None
+
+
+class ProfileIn(BaseModel):
+    bio: Optional[str] = Field(None, max_length=2000)
+    bio_en: Optional[str] = Field(None, max_length=2000)
+    website: Optional[str] = None
+    phone: Optional[str] = None
+    city: Optional[str] = None
+    company_name: Optional[str] = None
+    region: Optional[str] = None
+    logistics_service: Optional[str] = None  # piccoli | grandi | entrambi
+    certifications: list[ProfileItem] = []
+    awards: list[ProfileItem] = []
+    fairs: list[ProfileItem] = []
+    billing: Optional[BillingIn] = None
+
+
+# ----------------------------- AI assistants -----------------------------
+
+class AdvisorChatIn(BaseModel):
+    session_id: str = Field(min_length=6, max_length=80)
+    message: str = Field(min_length=2, max_length=4000)
+    context: Optional[str] = None
+
+
+class BuyerSearchIn(BaseModel):
+    query: str = Field(min_length=2, max_length=600)
+    quantity: Optional[str] = None
+    destination: Optional[str] = None
+    budget: Optional[str] = None
+
+
+class AiDraftIn(BaseModel):
+    description: str = Field(min_length=5, max_length=2000)
+    category: Optional[str] = None
+
+
+# ----------------------------- Admin -----------------------------
+
+class AccountReviewIn(BaseModel):
+    action: Literal["approve", "reject"]

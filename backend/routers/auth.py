@@ -10,7 +10,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 PUBLIC_FIELDS = (
     "email", "name", "role", "locale", "company_name", "region",
     "business_type", "specialty", "fleet_info", "featured_until", "created_at",
+    "approved", "bio", "bio_en", "website", "phone", "city",
+    "logistics_service", "certifications", "awards", "fairs", "billing",
 )
+
+
+# Roles that operate immediately; others wait for owner approval.
+AUTO_APPROVED_ROLES = ("consumer", "producer", "admin")
 
 
 def public_user(u: dict) -> dict:
@@ -19,6 +25,8 @@ def public_user(u: dict) -> dict:
     d = {"id": str(u["_id"])}
     for f in PUBLIC_FIELDS:
         v = u.get(f)
+        if f == "approved" and v is None:
+            v = True
         d[f] = v.isoformat() if isinstance(v, datetime) else v
     return d
 
@@ -40,6 +48,7 @@ async def _register_user(body: RegisterIn):
         "specialty": body.specialty,
         "fleet_info": body.fleet_info,
         "featured_until": None,
+        "approved": body.role in AUTO_APPROVED_ROLES,
         "created_at": now_utc(),
     }
     await db.users.insert_one(user)

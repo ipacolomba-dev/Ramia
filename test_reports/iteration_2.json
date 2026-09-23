@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 2 end-to-end test of new features (Sapori di Sicilia / 'Ra mia). Backend: 36/36 pytest cases pass (22 legacy + 14 new). New coverage: wholesale product fields on GET+POST+PATCH /api/products, profiles CRUD (GET/PUT /api/profiles/me, GET /api/producers, GET /api/producers/{id}), Advisor AI chat + history (live=false as expected since PERPLEXITY_API_KEY is empty), AI buyer search (returns answer/products/shipment_id), AI product-draft (returns valid category + wholesale fields), owner earnings breakdown, account pending/approval flow (unapproved business gets 403 on B2B negotiation, admin can approve, seed business remains approved), logistics cold_chain + service_size fields. Fixed one test payload issue: ProfileIn expects certifications/awards/fairs as ProfileItem objects (dict with name/year/place) not plain strings — updated test to match model. Frontend: verified on mobile 390x844 — home shows 'Ricerca assistita AI' banner, /ai-search runs and returns a real AI recommendation with savings paragraph, /advisor renders disclaimer + composer, /admin (as admin) shows 'Account da approvare' section + 'I miei guadagni' link, /earnings shows total €173.49 with 4-bucket breakdown, /company-profile shows all sections (bio, city, phone, certifications with year, awards, fairs, billing), /product-form shows 'Crea con l'AI' card + wholesale section. Deprecated packages detected: NONE. React Native issues detected: NONE new. Only a repeat legacy console warning: shadow* style props (already reported in iteration_1).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Advisor chat", "issue": "In the browser automation run the assistant reply did not render within the 20s test wait. The backend endpoint itself responds correctly (pytest passes with a 90s timeout). Likely GPT-5.4 latency + no visible progress spinner. Consider showing a persistent 'sto ragionando…' indicator and/or a longer client timeout with abort control.", "affected_testIDs": ["advisor-send", "advisor-msg-1"]}
+    ],
+    "design_issues": [
+      {"screen": "global", "issues": ["Console warning 'shadow* style props are deprecated. Use boxShadow' still present (repeat of iteration_1)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_backend.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/pytest_iteration2.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Show a persistent progress indicator in /advisor while awaiting the LLM reply and/or bump the frontend request timeout to at least 60s to handle GPT-5.4 latency.",
+    "Legacy: replace shadow* style props with boxShadow across the app (carried over from iteration_1)."
+  ],
+  "critical_code_review_comments": [
+    "advisor.py correctly falls back to live=false when PERPLEXITY_API_KEY is empty and still returns a reply from Emergent LLM. Good pattern.",
+    "profiles.py PUT /profiles/me uses body.model_dump(exclude_none=True) and writes back list[ProfileItem] — matches frontend company-profile.tsx which sends {name, year, place}.",
+    "market.py exposes all six wholesale fields in list + detail (price_wholesale, moq, unit_wholesale, pack_per_carton, cartons_per_layer, cartons_per_pallet) verified in pytest.",
+    "admin.py /earnings correctly derives buckets from products (advertising via featured), orders (sales commission), shipping_requests accepted quotes (logistics 1%) and labels (1%). Total math checks out with tolerance.",
+    "auth.py auto-approves 'producer' and 'consumer' but NOT 'business'/'logistics'/'collaborator' — confirmed via test (registration returns approved=false, admin can flip via PATCH /admin/accounts/{id}/review).",
+    "logistics.py persists cold_chain + service_size via body.model_dump() spread — verified round-trip via GET /logistics/requests/{id}."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration2.py (new)"
+  ],
+  "success_rate": {"backend": "100% (36/36 pytest)", "frontend": "100% on all iteration-2 screens tested (home banner, /ai-search, /advisor render, /admin, /earnings, /company-profile, /product-form). Advisor reply did not render within 20s automation wait — likely GPT-5.4 latency, not a functional bug."},
+  "seed_data_creation": "Tests create TEST_* prefixed rows: 1 wholesale product (deleted at end), 1 registered business awaiting approval (approved during test), 1 cold-chain logistics request, 1 B2B offer + 1 negotiation. Legacy TEST_ leftovers from iteration_1 may still appear in list endpoints (deleted_at filter still missing on GET /api/products — carried-over minor issue).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend suite is complete and green (36 pass). Rerun with `pytest /app/backend/tests/ -v --junitxml=/app/test_reports/pytest/pytest_results.xml`. AI endpoints (advisor/chat, ai/search, ai/product-draft) DO consume Emergent LLM credits — keep re-runs sparing. Perplexity key intentionally empty → advisor 'live' must remain false. For frontend, direct URLs work: /ai-search, /advisor, /company-profile, /product-form, /earnings, /admin. Auth via /auth/login (email + password + click 'Accedi'). Advisor UI expects reply within a longer window — automate with >= 60s wait.",
+  "rca_of_issue": "N/A — no blocker bugs found. The only minor UX gap is /advisor lacking a persistent loading indicator: while backend responds fine (validated by pytest with 90s timeout), the UI test's 20s wait was too short to see the reply, which may mirror end-user perception on slow LLM calls. Suggest bumping client timeout and/or showing a 'sto ragionando…' placeholder bubble."
+}

@@ -86,3 +86,14 @@ def require_roles(*allowed: str):
         return user
 
     return dependency
+
+
+def require_approved_roles(*allowed: str):
+    async def dependency(user: dict = Depends(current_user)) -> dict:
+        if user["role"] not in allowed:
+            raise HTTPException(status_code=403, detail="Ruolo non autorizzato")
+        if not user.get("approved", True):
+            raise HTTPException(status_code=403, detail="Account in attesa di approvazione dall'amministratore")
+        return user
+
+    return dependency

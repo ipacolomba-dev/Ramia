@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
 
@@ -64,6 +64,7 @@ export default function ProductDetail() {
         }
       />
       <View style={{ flex: 1 }}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xl }}>
         <Img uri={p.image_url} style={styles.hero} />
         <View style={styles.body}>
           <View style={styles.badgeRow}>
@@ -74,10 +75,14 @@ export default function ProductDetail() {
             )}
           </View>
           <Text style={styles.name}>{name}</Text>
-          <Text style={styles.producer}>
-            {p.company_name}
-            {p.origin_region ? ` · ${p.origin_region}` : ""}
-          </Text>
+          <Pressable testID="product-producer-link" onPress={() => router.push(`/producer/${p.producer_id}`)} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
+            <Text style={styles.producer}>
+              {p.company_name}
+              {p.origin_region ? ` · ${p.origin_region}` : ""}
+              {"  "}
+              <Text style={{ color: colors.brandPrimary }}>{t("producerPage.viewProducer")} ›</Text>
+            </Text>
+          </Pressable>
           <View style={styles.priceRow}>
             <Text style={styles.price}>€{p.price.toFixed(2)}</Text>
             <Text style={styles.unit}>/ {p.unit}</Text>
@@ -87,7 +92,30 @@ export default function ProductDetail() {
             </Text>
           </View>
           <Text style={styles.description}>{description}</Text>
+
+          {(user?.role === "business" || user?.role === "producer" || user?.role === "admin") && p.price_wholesale ? (
+            <View style={styles.wholesaleCard} testID="product-wholesale-card">
+              <View style={styles.wholesaleHead}>
+                <Ionicons name="briefcase" size={15} color={colors.onBrandSecondary} />
+                <Text style={styles.wholesaleTitle}>{t("wholesale.wholesale")}</Text>
+              </View>
+              <View style={styles.wholesaleRow}>
+                <Text style={styles.wholesalePrice}>€{p.price_wholesale.toFixed(2)}</Text>
+                <Text style={styles.unit}>/ {p.unit_wholesale || p.unit}</Text>
+                {p.moq ? <Text style={styles.moq}>{t("wholesale.moq")}: {p.moq}</Text> : null}
+              </View>
+              <View style={styles.packGrid}>
+                {p.pack_per_carton ? <PackCell label={t("wholesale.packPerCarton")} value={p.pack_per_carton} /> : null}
+                {p.cartons_per_layer ? <PackCell label={t("wholesale.cartonsPerLayer")} value={p.cartons_per_layer} /> : null}
+                {p.cartons_per_pallet ? <PackCell label={t("wholesale.cartonsPerPallet")} value={p.cartons_per_pallet} /> : null}
+              </View>
+              {user?.role === "business" && (
+                <Btn title={t("wholesale.negotiate")} icon="chatbubbles" size="sm" variant="secondary" testID="product-negotiate-button" onPress={() => router.push("/(tabs)/b2b")} style={{ marginTop: spacing.md }} />
+              )}
+            </View>
+          ) : null}
         </View>
+        </ScrollView>
       </View>
 
       {!isOwner && (
@@ -124,9 +152,29 @@ export default function ProductDetail() {
   );
 }
 
+function PackCell({ label, value }: { label: string; value: number }) {
+  const styles = useStyles();
+  return (
+    <View style={styles.packCell}>
+      <Text style={styles.packValue}>{value}</Text>
+      <Text style={styles.packLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const useStyles = makeStyles((colors: ThemeColors) => ({
   hero: { width: "100%", height: 280 },
   body: { padding: spacing.xl },
+  wholesaleCard: { backgroundColor: colors.surfaceTertiary, borderRadius: radius.md, padding: spacing.lg, marginTop: spacing.lg },
+  wholesaleHead: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: spacing.xs, backgroundColor: colors.brandSecondary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 3, marginBottom: spacing.md },
+  wholesaleTitle: { fontFamily: fonts.textBold, fontSize: 11, color: colors.onBrandSecondary },
+  wholesaleRow: { flexDirection: "row", alignItems: "baseline", gap: spacing.sm, flexWrap: "wrap" },
+  wholesalePrice: { fontFamily: fonts.textBold, fontSize: 22, color: colors.brandSecondary },
+  moq: { fontFamily: fonts.textMedium, fontSize: 12, color: colors.onSurfaceTertiary, marginLeft: spacing.sm },
+  packGrid: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, flexWrap: "wrap" },
+  packCell: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.sm, padding: spacing.md, alignItems: "center", minWidth: 90, flexGrow: 1 },
+  packValue: { fontFamily: fonts.textBold, fontSize: 18, color: colors.onSurface },
+  packLabel: { fontFamily: fonts.text, fontSize: 10, color: colors.muted, textAlign: "center", marginTop: 2 },
   badgeRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md, flexWrap: "wrap" },
   name: { fontFamily: fonts.display, fontSize: 26, color: colors.onSurface },
   producer: { fontFamily: fonts.textMedium, fontSize: 14, color: colors.brandSecondary, marginTop: spacing.xs },

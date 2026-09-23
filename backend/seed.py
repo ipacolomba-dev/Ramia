@@ -46,7 +46,13 @@ async def seed():
             "name": name, "role": role, "locale": "it", "featured_until": None,
             "company_name": kw.get("company_name"), "region": kw.get("region"),
             "business_type": kw.get("business_type"), "specialty": kw.get("specialty"),
-            "fleet_info": kw.get("fleet_info"), "created_at": now_utc(),
+            "fleet_info": kw.get("fleet_info"), "approved": True,
+            "bio": kw.get("bio"), "bio_en": kw.get("bio_en"), "city": kw.get("city"),
+            "website": kw.get("website"), "phone": kw.get("phone"),
+            "logistics_service": kw.get("logistics_service"),
+            "certifications": kw.get("certifications", []),
+            "awards": kw.get("awards", []), "fairs": kw.get("fairs", []),
+            "created_at": now_utc(),
         }
 
     admin = {
@@ -54,14 +60,39 @@ async def seed():
         "password_hash": hash_password("SaporiAdmin2026!"), "name": "Curatore",
         "role": "admin", "locale": "it", "featured_until": None, "company_name": "’Ra mia",
         "region": "Sicilia", "business_type": None, "specialty": None, "fleet_info": None,
-        "created_at": now_utc(),
+        "approved": True, "created_at": now_utc(),
     }
-    producer_demo = mkuser("produttore@demo.it", "Giovanni Gulì", "producer", company_name="Azienda Agricola Gulì", region="Val di Mazara, Palermo")
-    producer2 = mkuser("frantoi@demo.it", "Carmelo Ibleo", "producer", company_name="Frantoi dei Monti Iblei", region="Ragusa")
-    producer3 = mkuser("rocca@demo.it", "Rosario Capra", "producer", company_name="Rocca del Capra", region="Nebrodi, Messina")
-    business = mkuser("business@demo.it", "EuroGourmet", "business", company_name="EuroGourmet GmbH", business_type="distributore", region="Monaco, Germania")
+    producer_demo = mkuser(
+        "produttore@demo.it", "Giovanni Gulì", "producer",
+        company_name="Azienda Agricola Gulì", region="Val di Mazara, Palermo", city="Castelvetrano",
+        website="https://guli.example", phone="+39 091 000 0000",
+        bio="Azienda agricola familiare fondata nel 1952 nella Val di Mazara. Coltiviamo olive Nocellara del Belice e agrumi con metodi tradizionali e frantoio di proprietà.",
+        bio_en="Family farm founded in 1952 in Val di Mazara. We grow Nocellara del Belice olives and citrus with traditional methods and our own mill.",
+        certifications=[{"name": "Biologico (BIO)", "year": "2015"}, {"name": "DOP Valle del Belice", "year": "2018"}, {"name": "HACCP", "year": "2020"}],
+        awards=[{"name": "Ercole Olivario — Menzione", "year": "2022"}, {"name": "Gambero Rosso — Due Foglie", "year": "2023"}],
+        fairs=[{"name": "Cibus Parma", "place": "Parma, 2024"}, {"name": "Anuga", "place": "Colonia, 2023"}],
+    )
+    producer2 = mkuser(
+        "frantoi@demo.it", "Carmelo Ibleo", "producer",
+        company_name="Frantoi dei Monti Iblei", region="Ragusa", city="Chiaramonte Gulfi",
+        bio="Frantoio cooperativo sui Monti Iblei, specializzato in olio DOP Monti Iblei cultivar Tonda Iblea e conserve di Pantelleria.",
+        bio_en="Cooperative mill on the Iblei Mountains, specialised in DOP Monti Iblei oil (Tonda Iblea) and Pantelleria preserves.",
+        certifications=[{"name": "DOP Monti Iblei", "year": "2016"}, {"name": "IGP Cappero di Pantelleria", "year": "2019"}],
+        awards=[{"name": "Flos Olei — 96/100", "year": "2024"}],
+        fairs=[{"name": "Sol&Agrifood Verona", "place": "Verona, 2024"}],
+    )
+    producer3 = mkuser(
+        "rocca@demo.it", "Rosario Capra", "producer",
+        company_name="Rocca del Capra", region="Nebrodi, Messina", city="San Marco d'Alunzio",
+        bio="Caseificio e cantina sui Nebrodi. Pecorino DOP di grotta, ricotta salata e vini Nero d'Avola da vigneti di montagna.",
+        bio_en="Dairy and winery on the Nebrodi. Cave-aged DOP pecorino, salted ricotta and Nero d'Avola wines from mountain vineyards.",
+        certifications=[{"name": "Pecorino Siciliano DOP", "year": "2014"}, {"name": "DOC Sicilia", "year": "2017"}],
+        awards=[{"name": "Concorso Nazionale Formaggi — Oro", "year": "2023"}],
+        fairs=[{"name": "Cheese Bra Slow Food", "place": "Bra, 2023"}],
+    )
+    business = mkuser("business@demo.it", "EuroGourmet", "business", company_name="EuroGourmet GmbH", business_type="distributore", region="Monaco, Germania", city="München")
     collaborator = mkuser("consulente@demo.it", "Studio Etichette Export", "collaborator", specialty="Conformità etichette EU/USA")
-    logistics = mkuser("logistica@demo.it", "SiciliaLogistica", "logistics", company_name="SiciliaLogistica Srl", region="Catania", fleet_info="20 furgoni, 8 isotermici, 2 groupage/sett verso Milano")
+    logistics = mkuser("logistica@demo.it", "SiciliaLogistica", "logistics", company_name="SiciliaLogistica Srl", region="Catania", fleet_info="20 furgoni, 8 isotermici, 2 groupage/sett verso Milano", logistics_service="entrambi")
     consumer = mkuser("consumatore@demo.it", "Chiara Testa", "consumer")
 
     await db.users.insert_many([admin, producer_demo, producer2, producer3, business, collaborator, logistics, consumer])
@@ -73,6 +104,8 @@ async def seed():
             "_id": str(uuid.uuid4()), "name": name, "name_en": name_en,
             "description": desc, "description_en": desc_en, "category": category,
             "price": price, "unit": unit, "stock": stock,
+            "price_wholesale": round(price * 0.7, 2), "moq": 50, "unit_wholesale": unit,
+            "pack_per_carton": 12, "cartons_per_layer": 8, "cartons_per_pallet": 48,
             "image_url": IMG.format(pid=img), "origin_region": producer["region"],
             "producer_id": producer["_id"], "producer_name": producer["name"],
             "company_name": producer.get("company_name") or producer["name"],
@@ -157,14 +190,14 @@ async def seed():
     shipping_requests = [
         {"_id": str(uuid.uuid4()), "title": "Groupage Sicilia → Milano (frigo)", "cargo_type": "Agrumi + formaggi refrigerati",
          "origin": "Ragusa", "destination": "Milano", "ready_date": "2026-06-30", "weight_kg": 1200, "pallets": 6,
-         "notes": "Cerchiamo partner per completare il furgone isotermico: fino a 4 posti pallet disponibili.", "shared": True,
+         "notes": "Cerchiamo partner per completare il furgone isotermico: fino a 4 posti pallet disponibili.", "shared": True, "cold_chain": True, "service_size": "grandi",
          "creator_id": producer2["_id"], "creator_name": producer2["company_name"], "creator_role": "producer", "status": "open",
          "participants": [{"user_id": producer2["_id"], "name": producer2["company_name"], "role": "producer"}],
          "quotes": [{"id": str(uuid.uuid4()), "company_id": logistics["_id"], "company_name": logistics["company_name"], "price": 890.0, "transit_days": 2, "message": "Isotermico 18t, partenza martedì, carico condiviso con 2 spedizioni.", "created_at": now_utc().isoformat()}],
          "created_at": now_utc()},
         {"_id": str(uuid.uuid4()), "title": "Export pallet olio → Monaco di Baviera", "cargo_type": "Olio EVO in vetro (pallet filmati)",
          "origin": "Palermo", "destination": "Monaco di Baviera, DE", "ready_date": "2026-07-08", "weight_kg": 2400, "pallets": 8,
-         "notes": "Cerchiamo altri produttori per riempire il trailer e ridurre il costo per pallet.", "shared": True,
+         "notes": "Cerchiamo altri produttori per riempire il trailer e ridurre il costo per pallet.", "shared": True, "cold_chain": False, "service_size": "grandi",
          "creator_id": producer_demo["_id"], "creator_name": producer_demo["company_name"], "creator_role": "producer", "status": "open",
          "participants": [{"user_id": producer_demo["_id"], "name": producer_demo["company_name"], "role": "producer"}],
          "quotes": [], "created_at": now_utc()},
