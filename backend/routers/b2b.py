@@ -52,6 +52,12 @@ async def create_offer(body: B2BOfferIn, user: dict = Depends(require_roles("pro
     return _clean(doc)
 
 
+@router.get("/b2b/offers/{offer_id}")
+async def get_single_offer(offer_id: str, user: dict = Depends(current_user)):
+    doc = await get_offer(offer_id)
+    return _clean(doc)
+
+
 @router.patch("/b2b/offers/{offer_id}/close")
 async def close_offer(offer_id: str, user: dict = Depends(require_roles("producer"))):
     res = await db.b2b_offers.update_one(

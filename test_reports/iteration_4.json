@@ -1,0 +1,32 @@
+{
+  "summary": "Regression test for the B2B 'trattative' bug (root cause: missing GET /api/b2b/offers/{offer_id}). Verified backend + frontend at mobile viewport 375x667 via the public EXPO_PUBLIC_BACKEND_URL. Backend: 10/10 pytest cases pass, including single-offer 200/404/auth-required, and full negotiation flow (business starts, sends message, proposes agreement → producer sees it in /mine, accepts → status agreed). Frontend: BUSINESS (business@demo.it) can open B2B, tap b2b-offer-<id>, the detail screen renders 'b2b-offer-detail' without ErrorBanner, tapping 'b2b-start-negotiation-button' shows 'b2b-negotiation-view' + 'b2b-message-input'. PRODUCER (produttore@demo.it) sees 4 items in Trattative, tapping negotiation-item-<id> opens the detail with 'b2b-offer-detail', 'b2b-negotiation-view' and 'b2b-message-list', no ErrorBanner. Icons in the negotiation detail render correctly (no crash).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_b2b_negotiation.py",
+    "/app/test_reports/pytest/pytest_iteration4.xml",
+    "/app/test_reports/iteration_4.json"
+  ],
+  "action_items": [
+    "None blocking. Optional: React Native web warning 'shadow* style props are deprecated. Use boxShadow.' printed on many screens — non-blocking design refactor.",
+    "Optional: consider aligning to Ionicons v7 names project-wide; a spot check on this bug fix (handshake → briefcase/ribbon/people-outline/chatbubbles-outline/send) confirms all icons render."
+  ],
+  "critical_code_review_comments": [
+    "GET /api/b2b/offers/{offer_id} correctly reuses get_offer() and _clean() to strip Mongo _id; auth-required via current_user; 404 for missing id.",
+    "b2b/[id].tsx correctly fetches offer via /b2b/offers/{id} and shows ErrorBanner only on real fetch failure — bug fix path is exercised.",
+    "start_negotiation is idempotent per (offer, business) — verified: retrying returns the existing negotiation, matching the client's optimistic behaviour.",
+    "respond_agreement blocks self-response and requires an existing 'proposed' agreement — good defensive checks."
+  ],
+  "updated_files": ["/app/backend/tests/test_b2b_negotiation.py"],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% — all 5 items in features_or_bugs_to_test passed"},
+  "seed_data_creation": "None new. Test reused existing seed offer/producer 'Frantoi dei Monti Iblei'. A prior negotiation created during backend run remains in DB (business@demo.it × Frantoi offer, status=agreed) — expected and harmless.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Bug 'sezione trattative B2B dà errore' is fully resolved. Backend GET /api/b2b/offers/{offer_id} exists in /app/backend/routers/b2b.py:55-58 and returns 200 with cleaned doc. Playwright evidence: /tmp/business_offer_detail.png, /tmp/business_negotiation.png, /tmp/producer_negotiation.png. Reusable pytest suite: /app/backend/tests/test_b2b_negotiation.py (run with `pytest ... -o addopts=''` to avoid xdist parallel ordering that breaks class-state fixtures).",
+  "rca_of_issue": "Original bug: opening a B2B offer/negotiation detail screen surfaced ErrorBanner because GET /api/b2b/offers/{offer_id} returned 404 (endpoint missing in b2b router). The frontend /b2b/[id].tsx fetches this endpoint on mount; failure → ErrorBanner. Fix (already applied by main agent): added `@router.get('/b2b/offers/{offer_id}')` handler using current_user auth + _clean() serializer, plus replaced two invalid Ionicons v7 'handshake' names in the detail screen. Regression verified end-to-end: 10 pytest cases green, Playwright smoke green for business and producer roles."
+}

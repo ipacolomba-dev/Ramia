@@ -143,7 +143,7 @@ export default function B2BOfferDetail() {
 
         {active && (
           <View style={styles.negotiationHeader} testID="b2b-negotiation-view">
-            <Ionicons name="handshake-outline" size={20} color={colors.brandSecondary} />
+            <Ionicons name="people-outline" size={20} color={colors.brandSecondary} />
             <Text style={styles.negotiationTitle}>
               {t("b2b.negotiations")} — {user?.role === "producer" ? active.business_name : active.producer_name}
             </Text>
@@ -196,7 +196,7 @@ export default function B2BOfferDetail() {
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.md }]}>
             <Pressable testID="b2b-propose-agreement-button" onPress={() => setAgreementSheet(true)} style={styles.proposalBtn} accessibilityRole="button">
-              <Ionicons name="handshake" size={19} color={colors.onBrandSecondary} />
+              <Ionicons name="briefcase" size={19} color={colors.onBrandSecondary} />
             </Pressable>
             <Input
               testID="b2b-message-input"
@@ -259,7 +259,7 @@ function MessageBubble({ message, mine }: { message: B2BMessage; mine: boolean }
     return (
       <View style={[styles.agreementBubble, { alignSelf: "center" }]} testID="b2b-agreement-message">
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-          <Ionicons name="handshake" size={18} color={colors.brandSecondary} />
+          <Ionicons name="briefcase" size={18} color={colors.brandSecondary} />
           <Text style={styles.agreementTitle}>{t("b2b.proposeAgreement")}</Text>
           <Badge
             label={message.agreement_status === "accepted" ? t("b2b.agreed") : message.agreement_status === "rejected" ? t("b2b.reject") : t("b2b.inNegotiation")}
