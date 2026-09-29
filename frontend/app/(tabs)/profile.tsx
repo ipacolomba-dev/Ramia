@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import React from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
 
@@ -82,7 +82,11 @@ export default function ProfileTab() {
 
   return (
     <Screen style={{ paddingBottom: 0 }}>
-      <View style={{ flex: 1, paddingBottom: bottomChrome }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: bottomChrome + spacing.xl }}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]} testID="profile-tab">
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials}</Text>
@@ -151,7 +155,7 @@ export default function ProfileTab() {
           <Ionicons name="log-out-outline" size={19} color={colors.error} />
           <Text style={[styles.menuLabel, { color: colors.error }]}>{t("auth.logout")}</Text>
         </Pressable>
-      </View>
+      </ScrollView>
     </Screen>
   );
 }

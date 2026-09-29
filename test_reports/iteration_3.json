@@ -1,0 +1,29 @@
+{
+  "summary": "Frontend-only regression test of the Profile tab scroll fix in /app/frontend/app/(tabs)/profile.tsx. Verified for both PRODUCER (produttore@demo.it) and ADMIN (admin@saporidisicilia.it) at mobile viewport 375x667 via the public EXPO_PUBLIC_BACKEND_URL. Result: the ScrollView correctly makes the Profile tab scrollable; all menu items and the 'Esci' (logout-button) are reachable, and no regressions were observed on menu-item clicks or the IT/EN language toggle.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "profile (admin)", "issues": ["Role badge on admin renders the raw i18n key 'role.admin' instead of a translated label — the key is missing from the i18n dictionary. Pre-existing, unrelated to the scroll fix, but visible on the profile screen; suggest adding role.admin (and verifying role.producer/business/collaborator/logistics/consumer) to /app/frontend/src/i18n."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_3.json"],
+  "action_items": [
+    "OPTIONAL (not blocking this task): add missing i18n key 'role.admin' (and confirm role.* keys for every Role) so the admin profile badge shows a translated label instead of 'role.admin'."
+  ],
+  "critical_code_review_comments": [
+    "profile.tsx correctly wraps the authenticated body in <ScrollView style={{flex:1}} contentContainerStyle={{paddingBottom: bottomChrome + spacing.xl}}> with showsVerticalScrollIndicator={false}. Outer <Screen paddingBottom:0> lets the ScrollView own the safe-area bottom padding — correct pattern.",
+    "usesNativeTabs branch adds insets.bottom to the ScrollView padding so content clears the tab bar; on web (usesNativeTabs=false) the tabs sit outside the Screen so 0 is correct. Verified visually: 'Esci' clears the tab bar after scrolling.",
+    "profile-tab testID stays attached to the header View inside the ScrollView, so existing tests continue to locate the screen. logout-button testID and all menu-* testIDs are preserved.",
+    "Menu-item filtering per role (producer / admin / business / logistics / collaborator) is unchanged and still gated correctly."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run)", "frontend": "100% — all 4 items in features_or_bugs_to_test passed"},
+  "seed_data_creation": "None. Test only logged in with existing seed accounts and read the Profile screen.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Profile scroll fix is verified for both producer and admin at 375x667. Measurements captured during the run: producer ScrollView scrollHeight=712 vs clientHeight=603 → user must scroll ~109px to bring 'Esci' into view; before scroll logout.top=635 (below viewport 667), after scroll logout.top=526 (in viewport). Admin has fewer rows so content fits without scrolling (logout.top=511 already inside 667). menu-orders navigates to /orders for both roles. Lang toggle IT<->EN works.",
+  "rca_of_issue": "Original bug: the Profile tab used <View style={{flex:1}}> as the inner container, so overflow was clipped at the safe-area/tab-bar boundary and the last rows (including 'Esci') became unreachable when the menu list was long (producer / business / logistics / collaborator roles). Fix: swap the inner container for a <ScrollView style={{flex:1}} contentContainerStyle={{paddingBottom: bottomChrome + spacing.xl}}>. Reproduction on the current build: log in as produttore@demo.it, open Profilo — scrollHeight (712) > clientHeight (603), the ScrollView now scrolls, 'logout-button' becomes visible in the viewport after scrollTop=109. Mitigation confirmed working."
+}
