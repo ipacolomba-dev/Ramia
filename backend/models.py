@@ -84,6 +84,13 @@ class ProductIn(BaseModel):
     pack_per_carton: Optional[int] = Field(None, ge=0)
     cartons_per_layer: Optional[int] = Field(None, ge=0)
     cartons_per_pallet: Optional[int] = Field(None, ge=0)
+    # Compliance / export data (optional)
+    ingredients: Optional[str] = None
+    allergens: Optional[str] = None
+    shelf_life: Optional[str] = None
+    net_weight: Optional[str] = None
+    packaging: Optional[str] = None
+    hs_code: Optional[str] = None
 
 
 class ProductDoc(BaseDocument):
@@ -103,6 +110,12 @@ class ProductDoc(BaseDocument):
     pack_per_carton: Optional[int] = None
     cartons_per_layer: Optional[int] = None
     cartons_per_pallet: Optional[int] = None
+    ingredients: Optional[str] = None
+    allergens: Optional[str] = None
+    shelf_life: Optional[str] = None
+    net_weight: Optional[str] = None
+    packaging: Optional[str] = None
+    hs_code: Optional[str] = None
     producer_id: str
     producer_name: str
     company_name: str
@@ -292,3 +305,38 @@ class AiDraftIn(BaseModel):
 
 class AccountReviewIn(BaseModel):
     action: Literal["approve", "reject"]
+
+
+# ----------------------------- Trade Assistant -----------------------------
+
+class TradeMarketIn(BaseModel):
+    product_id: str
+    country: str = Field(min_length=2, max_length=60)
+    extra: Optional[dict] = None  # missing compliance fields provided by producer
+
+
+class TradeComplianceIn(BaseModel):
+    product_id: str
+    country: str = Field(min_length=2, max_length=60)
+    label_text: Optional[str] = Field(None, max_length=4000)
+    image_url: Optional[str] = None
+    extra: Optional[dict] = None
+
+
+class TradeFindMarketsIn(BaseModel):
+    product_id: str
+
+
+class ExportPlanCreateIn(BaseModel):
+    product_id: str
+    country: str = Field(min_length=2, max_length=60)
+    analysis_id: Optional[str] = None
+
+
+class StepToggleIn(BaseModel):
+    done: bool
+
+
+class FindBuyersIn(BaseModel):
+    country: Optional[str] = None
+    category: Optional[str] = None

@@ -100,6 +100,125 @@ export interface AiSearchResult {
   shipment_id?: string | null;
 }
 
+export interface TradeSource {
+  title: string;
+  url: string;
+  authority?: string;
+  date?: string;
+  reliability: "verified" | "to_verify";
+}
+
+export interface MarketData {
+  summary?: string;
+  accessibility?: string;
+  hs_code?: string;
+  customs?: string;
+  duties?: string;
+  taxes?: string;
+  health?: string;
+  food_safety?: string;
+  import_requirements?: string;
+  labeling?: { language?: string; allergens?: string; packaging?: string; shelf_life?: string; mandatory?: string[] };
+  documents?: string[];
+  certifications?: string[];
+  importer_requirements?: string;
+  logistics?: string;
+  controls?: string;
+  risks?: string[];
+  actions?: string[];
+  missing_info?: string[];
+  sources?: TradeSource[];
+  reliability?: string;
+}
+
+export interface TradeAnalysis {
+  id: string;
+  product_id: string;
+  product_name?: string;
+  country: string;
+  version: number;
+  status?: "pending" | "ready" | "error";
+  data: MarketData;
+  missing_info?: string[];
+  live: boolean;
+  created_at: string;
+  summary?: string;
+}
+
+export interface MarketRank {
+  country: string;
+  score: number;
+  reasons: string[];
+  complexity?: string;
+  data_available?: boolean;
+}
+
+export interface ComplianceItem {
+  area: string;
+  label: string;
+  status: "ok" | "warn" | "missing";
+  note?: string;
+}
+
+export interface ComplianceResult {
+  items: ComplianceItem[];
+  missing_fields: string[];
+  label_adjustment_recommended?: boolean;
+  summary?: string;
+  image_url?: string | null;
+}
+
+export interface PlanStep {
+  id: string;
+  order: number;
+  type: string;
+  title: string;
+  description: string;
+  action?: { kind: string } | null;
+  done: boolean;
+}
+
+export interface ExportPlan {
+  id: string;
+  product_id: string;
+  product_name?: string;
+  country: string;
+  analysis_id?: string | null;
+  steps: PlanStep[];
+  created_at: string;
+}
+
+export interface PlanSummary {
+  id: string;
+  product_id: string;
+  product_name?: string;
+  country: string;
+  total: number;
+  done: number;
+  created_at: string;
+}
+
+export interface TradeBuyer {
+  id: string;
+  company_name: string;
+  business_type?: string | null;
+  region?: string;
+  match: boolean;
+}
+
+export interface TradeDashboard {
+  markets_monitored: number;
+  products_analyzed: number;
+  analyses_completed: number;
+  open_actions: number;
+  alerts: number;
+  labels_todo: number;
+  docs_missing: number;
+  opportunities: number;
+  activities: { country: string; product_name?: string; summary?: string }[];
+  disclaimer: string;
+}
+
 export interface Product {
   id: string;
   name: string;

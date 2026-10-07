@@ -29,6 +29,12 @@ Consumatore, Produttore, Business (grossista/distributore/GDO), Collaboratore et
 - Full stack, auth JWT RBAC, B2C + B2B + logistica + etichette + visibilità, import PDF (Gemini) + email, Chi siamo, integrazione logo/splash/icone.
 ### Questa iterazione (2026-06)
 - Modello prodotto standard con campi ingrosso (backend + form + scheda prodotto). ✅
+- **RA MIA Trade Assistant** (AI Trade & Compliance + Export Workflow, core): l'ex "Consulente Export AI" trasformato in agente integrato. ✅
+  - Backend `routers/trade.py`: market-analysis (asincrono: POST ritorna subito `{id,status:pending}`, worker GPT-5.4 in background, polling via GET /trade/analyses/{id}; evita timeout edge ~100s), find-markets (classifica trasparente), compliance (ok/warn/missing), export-plan (10 step cliccabili + toggle), find-buyers (match distributori), dashboard, analyses history (versionata). Perplexity non configurato → `live=false`, fonti/affidabilità "da verificare".
+  - Prodotto esteso con campi conformità opzionali: ingredients, allergens, shelf_life, net_weight, packaging, hs_code.
+  - Frontend `app/trade/*`: hub (4 azioni), market, markets, compliance, plan/[id], dashboard, history, analysis/[id], buyers + componenti condivisi `src/components/trade.tsx` (ProductPicker, CountryChips, ReliabilityBadge, SourceList, MarketAnalysisView). Pulsanti in scheda prodotto: "Esplora nuovi mercati" / "Chiedi all'AI Trade Assistant". Entry da Profilo e dashboard produttore.
+  - Ruoli/privacy: solo producer/admin; un produttore vede solo le proprie analisi/piani.
+  - Testato: endpoint trade verificati (testing agent iteration_5) + flusso asincrono market-analysis verificato (pending→ready).
 - Scheda azienda pubblica + editor (certificazioni/premi/fiere) + dati fatturazione. ✅ (`/company-profile`, `/producer/[id]`, `/api/profiles/*`, `/api/producers/*`)
 - Consulente Export AI (GPT-5.4, Perplexity ready, fonti, disclaimer, storico). ✅ (`/advisor`, `/api/advisor/*`)
 - Ricerca AI acquisti con consiglio di risparmio + link spedizione condivisa. ✅ (`/ai-search`, `/api/ai/search`)
@@ -41,9 +47,10 @@ Consumatore, Produttore, Business (grossista/distributore/GDO), Collaboratore et
 
 ## Backlog prioritizzato
 ### P1
+- **Trade Assistant iterazione 2**: Alert normativi (monitora mercato/prodotto), Regulatory Knowledge Base + Update Engine (strutture aggiornabili da admin, popolate solo con fonti verificate), analisi etichetta da immagine caricata (vision).
+- Attivare Perplexity Sonar (fornire `PERPLEXITY_API_KEY`) → fonti ufficiali verificate 🟢 in tempo reale nel Trade Assistant.
 - Stripe/Razorpay per pagamenti reali (ora checkout simulato) → attiva incassi reali del pannello guadagni.
 - Email dedicata reale per notifiche approvazione prodotti (ora `delivered@resend.dev`).
-- Attivare Perplexity Sonar (fornire `PERPLEXITY_API_KEY`) per dati web in tempo reale nel Consulente Export.
 ### P2
 - Contatti reali (email/telefono/città/social) in fondo a "Chi siamo".
 - Unificazione completa offerte B2B dentro il prodotto (ora coesistono product wholesale + offerte B2B).

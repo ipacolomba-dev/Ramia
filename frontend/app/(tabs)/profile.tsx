@@ -134,7 +134,7 @@ export default function ProfileTab() {
             <MenuRow icon="business-outline" label={t("profile.companyProfile")} testID="menu-company-profile" onPress={() => router.push("/company-profile")} />
           )}
           {(user.role === "producer" || user.role === "business") && (
-            <MenuRow icon="sparkles-outline" label={t("profile.advisor")} testID="menu-advisor" onPress={() => router.push("/advisor")} tint={colors.brandSecondary} />
+            <MenuRow icon="earth-outline" label={t("trade.title")} testID="menu-advisor" onPress={() => router.push("/trade")} tint={colors.brandSecondary} />
           )}
           {user.role === "producer" && (
             <>

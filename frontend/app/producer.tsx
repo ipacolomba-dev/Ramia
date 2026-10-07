@@ -105,11 +105,11 @@ export default function ProducerDashboard() {
             </View>
             <Text style={styles.actionLabel}>{t("profile.companyProfile")}</Text>
           </Pressable>
-          <Pressable testID="producer-advisor" onPress={() => router.push("/advisor")} style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.88 }]} accessibilityRole="button">
+          <Pressable testID="producer-advisor" onPress={() => router.push("/trade")} style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.88 }]} accessibilityRole="button">
             <View style={[styles.actionIcon, { backgroundColor: colors.brandPrimary }]}>
-              <Ionicons name="sparkles" size={20} color={colors.onBrandPrimary} />
+              <Ionicons name="earth" size={20} color={colors.onBrandPrimary} />
             </View>
-            <Text style={styles.actionLabel}>{t("profile.advisor")}</Text>
+            <Text style={styles.actionLabel}>{t("trade.title")}</Text>
           </Pressable>
         </View>
 

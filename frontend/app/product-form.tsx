@@ -40,6 +40,11 @@ export default function ProductForm() {
   const [packPerCarton, setPackPerCarton] = useState("");
   const [cartonsPerLayer, setCartonsPerLayer] = useState("");
   const [cartonsPerPallet, setCartonsPerPallet] = useState("");
+  const [ingredients, setIngredients] = useState("");
+  const [allergens, setAllergens] = useState("");
+  const [shelfLife, setShelfLife] = useState("");
+  const [netWeight, setNetWeight] = useState("");
+  const [packaging, setPackaging] = useState("");
   const [aiDesc, setAiDesc] = useState("");
   const [aiSheet, setAiSheet] = useState(false);
   const [error, setError] = useState("");
@@ -68,6 +73,11 @@ export default function ProductForm() {
       setPackPerCarton(p.pack_per_carton != null ? String(p.pack_per_carton) : "");
       setCartonsPerLayer(p.cartons_per_layer != null ? String(p.cartons_per_layer) : "");
       setCartonsPerPallet(p.cartons_per_pallet != null ? String(p.cartons_per_pallet) : "");
+      setIngredients(p.ingredients ?? "");
+      setAllergens(p.allergens ?? "");
+      setShelfLife(p.shelf_life ?? "");
+      setNetWeight(p.net_weight ?? "");
+      setPackaging(p.packaging ?? "");
     }
   }, [existing.data]);
 
@@ -80,6 +90,11 @@ export default function ProductForm() {
     pack_per_carton: packPerCarton ? parseInt(packPerCarton, 10) : null,
     cartons_per_layer: cartonsPerLayer ? parseInt(cartonsPerLayer, 10) : null,
     cartons_per_pallet: cartonsPerPallet ? parseInt(cartonsPerPallet, 10) : null,
+    ingredients: ingredients || null,
+    allergens: allergens || null,
+    shelf_life: shelfLife || null,
+    net_weight: netWeight || null,
+    packaging: packaging || null,
   });
 
   const mutation = useMutation({
@@ -287,6 +302,30 @@ export default function ProductForm() {
             </Field>
           </View>
         </View>
+
+        <Text style={styles.sectionLabel}>{t("productForm.complianceSection")}</Text>
+        <Text style={styles.wholesaleHint}>{t("productForm.complianceHint")}</Text>
+        <Field label={t("productForm.ingredients")}>
+          <Input testID="product-form-ingredients" value={ingredients} onChangeText={setIngredients} multiline placeholder="Olive, sale…" />
+        </Field>
+        <Field label={t("productForm.allergens")}>
+          <Input testID="product-form-allergens" value={allergens} onChangeText={setAllergens} placeholder="Glutine, frutta a guscio…" />
+        </Field>
+        <View style={styles.row}>
+          <View style={{ flex: 1, marginRight: spacing.sm }}>
+            <Field label={t("productForm.netWeight")}>
+              <Input testID="product-form-net-weight" value={netWeight} onChangeText={setNetWeight} placeholder="500 g" />
+            </Field>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Field label={t("productForm.shelfLife")}>
+              <Input testID="product-form-shelf-life" value={shelfLife} onChangeText={setShelfLife} placeholder="18 mesi" />
+            </Field>
+          </View>
+        </View>
+        <Field label={t("productForm.packaging")}>
+          <Input testID="product-form-packaging" value={packaging} onChangeText={setPackaging} placeholder="Vetro, bottiglia 500ml…" />
+        </Field>
 
         {error ? (
           <Text style={styles.error} testID="product-form-error-text">

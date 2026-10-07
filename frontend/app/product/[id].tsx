@@ -114,6 +114,13 @@ export default function ProductDetail() {
               )}
             </View>
           ) : null}
+
+          {(user?.role === "producer" || user?.role === "admin") && (
+            <View style={styles.tradeBox} testID="product-trade-actions">
+              <Btn title={t("product.exploreMarkets")} variant="secondary" testID="product-explore-markets" onPress={() => router.push(`/trade/market?productId=${p.id}`)} />
+              <Btn title={t("product.askTrade")} variant="outline" testID="product-ask-trade" onPress={() => router.push(`/advisor?context=${encodeURIComponent("Prodotto: " + name)}`)} style={{ marginTop: spacing.sm }} />
+            </View>
+          )}
         </View>
         </ScrollView>
       </View>
@@ -175,6 +182,7 @@ const useStyles = makeStyles((colors: ThemeColors) => ({
   packCell: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.sm, padding: spacing.md, alignItems: "center", minWidth: 90, flexGrow: 1 },
   packValue: { fontFamily: fonts.textBold, fontSize: 18, color: colors.onSurface },
   packLabel: { fontFamily: fonts.text, fontSize: 10, color: colors.muted, textAlign: "center", marginTop: 2 },
+  tradeBox: { marginTop: spacing.lg },
   badgeRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md, flexWrap: "wrap" },
   name: { fontFamily: fonts.display, fontSize: 26, color: colors.onSurface },
   producer: { fontFamily: fonts.textMedium, fontSize: 14, color: colors.brandSecondary, marginTop: spacing.xs },
