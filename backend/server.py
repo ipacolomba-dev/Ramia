@@ -5,8 +5,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from db import client, db
-from routers import admin, advisor, auth, b2b, imports, logistics, market, profiles, trade, uploads
+from routers import admin, advisor, auth, b2b, imports, logistics, market, profiles, regulatory, trade, uploads
 from seed import seed
+from seed_regulatory import seed_regulatory
 from storage import init_storage
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -22,6 +23,7 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Storage init rimandato: %s", exc)
     await seed()
+    await seed_regulatory()
     await trade.start_recovery()
     yield
     client.close()
@@ -48,6 +50,7 @@ app.include_router(imports.router, prefix=api_router_prefix)
 app.include_router(profiles.router, prefix=api_router_prefix)
 app.include_router(advisor.router, prefix=api_router_prefix)
 app.include_router(trade.router, prefix=api_router_prefix)
+app.include_router(regulatory.router, prefix=api_router_prefix)
 
 
 @app.get("/api")

@@ -7,7 +7,7 @@ import { api } from "@/src/api";
 import { Img } from "@/src/components/Img";
 import { useT } from "@/src/i18n";
 import { ThemeColors, fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
-import type { MarketData, Product, TradeSource } from "@/src/types";
+import type { KbBlock, MarketData, Product, TradeSource } from "@/src/types";
 
 export const COUNTRIES = [
   "Germania", "Francia", "Spagna", "Regno Unito", "USA", "Canada",
@@ -80,6 +80,109 @@ export function ReliabilityBadge({ reliability }: { reliability?: string }) {
       <Text style={[styles.relBadgeText, { color: verified ? colors.onSuccess : colors.onWarning }]}>
         {verified ? t("trade.sourceVerified") : t("trade.sourceToVerify")}
       </Text>
+    </View>
+  );
+}
+
+export function KbReliabilityBadge({ reliability }: { reliability?: string }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const map: Record<string, { bg: string; fg: string }> = {
+    A: { bg: colors.success, fg: colors.onSuccess },
+    B: { bg: colors.info, fg: colors.onInfo },
+    C: { bg: colors.warning, fg: colors.onWarning },
+    D: { bg: colors.muted, fg: colors.surface },
+  };
+  const c = map[reliability || "D"] || map.D;
+  return (
+    <View style={[styles.relBadge, { backgroundColor: c.bg }]}>
+      <Text style={[styles.relBadgeText, { color: c.fg }]}>{reliability || "D"}</Text>
+    </View>
+  );
+}
+
+export function ConfidenceBadge({ level }: { level?: string }) {
+  const { t } = useT();
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const map: Record<string, string> = {
+    HIGH: colors.success,
+    MEDIUM: colors.info,
+    LOW: colors.warning,
+    UNVERIFIED: colors.muted,
+  };
+  const bg = map[level || "UNVERIFIED"] || colors.muted;
+  const label: Record<string, string> = {
+    HIGH: t("kb.conf.high"),
+    MEDIUM: t("kb.conf.medium"),
+    LOW: t("kb.conf.low"),
+    UNVERIFIED: t("kb.conf.unverified"),
+  };
+  return (
+    <View style={[styles.confBadge, { backgroundColor: bg }]}>
+      <Ionicons name="analytics" size={11} color="#fff" />
+      <Text style={styles.confBadgeText}>{label[level || "UNVERIFIED"]}</Text>
+    </View>
+  );
+}
+
+export function KnowledgeBaseView({ kb }: { kb?: KbBlock }) {
+  const { t } = useT();
+  const { colors } = useTheme();
+  const styles = useStyles();
+  if (!kb) return null;
+  const reqs = kb.requirements || [];
+  const conflicts = kb.conflicts || [];
+
+  return (
+    <View style={styles.section} testID="trade-kb-view">
+      <Text style={styles.sectionTitle}>{t("kb.title")}</Text>
+      <View style={[styles.kbStatus, { backgroundColor: kb.has_official_source ? colors.surfaceSecondary : colors.brandTertiary }]}>
+        <Ionicons name={kb.has_official_source ? "shield-checkmark" : "information-circle"} size={15} color={kb.has_official_source ? colors.success : colors.onBrandTertiary} />
+        <Text style={styles.kbStatusText}>
+          {kb.has_official_source ? t("kb.hasOfficial") : t("kb.noOfficial")}
+        </Text>
+      </View>
+
+      {reqs.length === 0 ? (
+        <Text style={styles.sectionBody}>{t("kb.empty")}</Text>
+      ) : (
+        reqs.map((r) => (
+          <View key={r.id} style={styles.kbReq} testID={`kb-req-${r.id}`}>
+            <View style={styles.kbReqHead}>
+              <Text style={styles.kbReqType}>{t(`kb.type.${r.requirement_type}`) !== `kb.type.${r.requirement_type}` ? t(`kb.type.${r.requirement_type}`) : r.requirement_type}</Text>
+              <View style={{ flexDirection: "row", gap: 4 }}>
+                {r.is_demo ? (
+                  <View style={[styles.confBadge, { backgroundColor: colors.muted }]}>
+                    <Text style={styles.confBadgeText}>DEMO</Text>
+                  </View>
+                ) : null}
+                <ConfidenceBadge level={r.confidence?.level} />
+              </View>
+            </View>
+            <Text style={styles.sectionBody}>{r.description}</Text>
+            {r.source_name ? (
+              <Pressable onPress={() => r.source_url && Linking.openURL(r.source_url)} style={styles.kbSrcRow} testID={`kb-req-source-${r.id}`}>
+                <Ionicons name="link" size={12} color={colors.info} />
+                <Text style={[styles.kbSrcText, r.source_url ? { color: colors.info } : null]} numberOfLines={1}>{r.source_name}</Text>
+                <KbReliabilityBadge reliability={r.source_reliability} />
+              </Pressable>
+            ) : null}
+          </View>
+        ))
+      )}
+
+      {conflicts.length > 0 ? (
+        <View style={styles.conflictBox} testID="trade-kb-conflicts">
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Ionicons name="git-compare" size={15} color={colors.onWarning} />
+            <Text style={styles.conflictTitle}>{t("kb.conflicts")}</Text>
+          </View>
+          {conflicts.map((c, i) => (
+            <Text key={i} style={styles.conflictText}>• {c.requirement_type}: {c.note || t("kb.conflictNote")}</Text>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -167,6 +270,7 @@ export function MarketAnalysisView({ data }: { data: MarketData }) {
       <Section title={t("trade.sec.controls")} value={data.controls} />
       <ListSection title={t("trade.sec.risks")} items={data.risks} icon="warning-outline" />
       <ListSection title={t("trade.sec.actions")} items={data.actions} icon="arrow-forward-circle-outline" />
+      <KnowledgeBaseView kb={data.kb} />
       <SourceList sources={data.sources} />
     </View>
   );
@@ -182,6 +286,18 @@ const useStyles = makeStyles((colors: ThemeColors) => ({
   countryChipText: { fontFamily: fonts.textMedium, fontSize: 12, color: colors.onSurfaceTertiary },
   relBadge: { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2 },
   relBadgeText: { fontFamily: fonts.textBold, fontSize: 9 },
+  confBadge: { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2 },
+  confBadgeText: { fontFamily: fonts.textBold, fontSize: 9, color: "#FFFFFF" },
+  kbStatus: { flexDirection: "row", alignItems: "center", gap: spacing.sm, borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.sm },
+  kbStatusText: { flex: 1, fontFamily: fonts.textMedium, fontSize: 12, color: colors.onSurfaceSecondary, lineHeight: 16 },
+  kbReq: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.divider, padding: spacing.md, marginTop: spacing.sm },
+  kbReqHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.xs },
+  kbReqType: { fontFamily: fonts.textBold, fontSize: 12, color: colors.brandPrimary, textTransform: "uppercase", letterSpacing: 0.5 },
+  kbSrcRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: spacing.sm },
+  kbSrcText: { flex: 1, fontFamily: fonts.text, fontSize: 11, color: colors.muted },
+  conflictBox: { backgroundColor: colors.warning, borderRadius: radius.sm, padding: spacing.md, marginTop: spacing.md },
+  conflictTitle: { fontFamily: fonts.textBold, fontSize: 13, color: colors.onWarning },
+  conflictText: { fontFamily: fonts.text, fontSize: 12, color: colors.onWarning, marginTop: spacing.xs, lineHeight: 16 },
   section: { marginTop: spacing.lg },
   sectionTitle: { fontFamily: fonts.display, fontSize: 16, color: colors.onSurface, marginBottom: spacing.xs },
   sectionBody: { fontFamily: fonts.text, fontSize: 13, color: colors.onSurfaceSecondary, lineHeight: 20, marginTop: 2 },

@@ -7,7 +7,7 @@ import Ionicons from "@react-native-vector-icons/ionicons";
 
 import { api } from "@/src/api";
 import { Btn, CenterLoader, Field, Input, Screen, ScreenHeader, useToast } from "@/src/components/ui";
-import { CountryChips, ProductPicker } from "@/src/components/trade";
+import { CountryChips, KnowledgeBaseView, ProductPicker } from "@/src/components/trade";
 import { useT } from "@/src/i18n";
 import { ThemeColors, fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import type { ComplianceResult, Product } from "@/src/types";
@@ -77,6 +77,7 @@ export default function TradeCompliance() {
                 <Btn title={t("trade.requestLab")} icon="document-text" variant="secondary" size="sm" testID="compliance-request-lab" onPress={() => router.push("/label-form")} style={{ marginTop: spacing.sm }} />
               </View>
             )}
+            <KnowledgeBaseView kb={r.kb} />
           </View>
         )}
       </KeyboardAwareScrollView>

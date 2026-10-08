@@ -1,0 +1,43 @@
+{
+  "summary": "Regulatory Intelligence Engine CORE verificato end-to-end backend-only con pytest HTTP reali. 19/19 PASSED in ~68s (cd /app/backend && python -m pytest tests/test_regulatory_engine.py -v -o addopts=''). Catena completa: RBAC admin-only (producer->403 su /sources,/documents,/requirements,/center,/audit, POST /sources), /center su demo fresco (sources_total=4, documents=4, requirements=14, requirements_demo=14 — valori esatti dal server), chain admin (POST /sources -> POST /documents linked -> POST /documents/{id}/versions: 409 su contenuto identico, 200 con version=2 + diff.added/removed su nuovo contenuto -> POST /requirements linked a source+document con verification_status=AI_DETECTED), verify requisito (DEMO->400, non-demo->HUMAN_VERIFIED), GET /knowledge?country=Germania come produttore ritorna requirements+sources+conflicts con confidence.level=UNVERIFIED per tutti i demo, market-analysis async grounded su KB (polling fino a ready in ~70s, data.kb presente con requirements/sources/conflicts/has_official_source e snapshot_id valorizzato), ownership snapshot (owner 200, admin 200, altro produttore 403), POST /trade/compliance ritorna data.kb grounded. BUG BACKEND TROVATO E CORRETTO: NoneType.lower() in routers/regulatory.py:150 (kb_requirements_for) crashava market-analysis/compliance quando una requirement aveva category=None (come nel seed demo) e il prodotto aveva una category. Fix applicato con null-safety (d.get('category') or '').lower(). Senza il fix tutta la catena KB-grounded (market-analysis->snapshot, compliance) era rotta per i prodotti con categoria.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_regulatory_engine.py",
+    "/app/test_reports/pytest/pytest_iteration6.xml",
+    "/app/test_reports/iteration_6.json"
+  ],
+  "action_items": [
+    "Nessuna azione richiesta: la catena SOURCE->DOCUMENT->VERSION->REQUIREMENT->KB->MARKET ANALYSIS->COMPLIANCE->SNAPSHOT e' funzionante. Il fix null-safety in kb_requirements_for e' gia' applicato e verificato."
+  ],
+  "critical_code_review_comments": [
+    "Bug corretto: routers/regulatory.py:150 d.get('category', '').lower() -> (d.get('category') or '').lower() per gestire category=None nei record seedati.",
+    "Confidence engine spiegabile: build_confidence forza level='UNVERIFIED' quando is_demo o reliability='D'; i 14 requisiti seed sono tutti DEMO -> producer vede sempre UNVERIFIED, come atteso.",
+    "Snapshot ownership gestita correttamente: get_snapshot verifica analysis.producer_id vs user. Admin bypass OK, altro producer -> 403.",
+    "Versioning documenti e' idempotente sul contenuto: fingerprint SHA256 -> 409 su duplicato; diff add/remove calcolato per righe non vuote.",
+    "verify_requirement blocca correttamente i DEMO (400) e setta HUMAN_VERIFIED sui non-demo.",
+    "_kb_public esposto al client contiene has_official_source (bool) basato su reliability A/B e non is_demo — honest provenance.",
+    "DEMO seed usa URL/autorita' reali (EUR-Lex 1169, EC DG SANTE, TARIC, FDA) ma marca tutto is_demo=True — nessun dato fabbricato."
+  ],
+  "updated_files": [
+    "/app/backend/routers/regulatory.py (fix null-safety su category .lower() in kb_requirements_for)",
+    "/app/backend/tests/test_regulatory_engine.py (nuovo — suite HTTP end-to-end riusabile)"
+  ],
+  "success_rate": {
+    "backend": "100% (19/19)",
+    "frontend": "N/A (backend only)"
+  },
+  "seed_data_creation": "Non ho creato seed. Il test produce 1 source TEST + 1 document TEST (con 2 versioni) + 1 requirement TEST (poi HUMAN_VERIFIED) + 1 trade_analysis Germania per produttore@demo.it (status=ready con snapshot_id). I nomi sono prefissati TEST per cleanup futuro.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Suite riutilizzabile: cd /app/backend && python -m pytest tests/test_regulatory_engine.py -v -o addopts='' (richiede 1 chiamata AI per market-analysis + 1 per compliance, ~70s). Base URL letta da /app/frontend/.env (EXPO_PUBLIC_BACKEND_URL). Le fixture di modulo creano source/document/requirement TEST riutilizzati; se la DB non e' pulita i contatori di /center possono superare 4/4/14 — i test usano >= per robustezza (verificato esatto in questa iterazione: 4,4,14,14). PERPLEXITY_API_KEY vuota -> market analysis live=false (usa solo KB + LLM), comportamento atteso.",
+  "rca_of_issue": "BUG: AttributeError 'NoneType' object has no attribute 'lower' in routers/regulatory.py linea 150. Riproduzione: POST /api/trade/market-analysis o /api/trade/compliance con country=Germania su un prodotto che ha category valorizzato -> l'analisi finisce in status='error', compliance -> 500. Causa: kb_requirements_for faceva d.get('category', '').lower() ma i requisiti seedati hanno la chiave 'category' presente con valore None (dict.get restituisce None, non il default). Mitigazione applicata: (d.get('category') or '').lower(). Verificato: dopo fix la market-analysis arriva a ready con snapshot_id creato e compliance ritorna 200 con data.kb popolato."
+}

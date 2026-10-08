@@ -112,6 +112,14 @@ export default function Admin() {
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </Pressable>
 
+        <Pressable testID="admin-regulatory-link" onPress={() => router.push("/admin/regulatory")} style={({ pressed }) => [styles.earningsLink, pressed && { opacity: 0.9 }]} accessibilityRole="button">
+          <View style={[styles.menuIcon, { backgroundColor: colors.brandPrimary }]}>
+            <Ionicons name="shield-checkmark" size={18} color={colors.onBrandPrimary} />
+          </View>
+          <Text style={styles.earningsLinkText}>{t("reg.open")}</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        </Pressable>
+
         <Text style={styles.sectionTitle}>{t("accounts.title")}</Text>
         <Text style={styles.accountsSub}>{t("accounts.sub")}</Text>
         {(pendingAccounts.data ?? []).length === 0 ? (

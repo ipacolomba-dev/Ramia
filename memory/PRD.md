@@ -25,6 +25,15 @@ Consumatore, Produttore, Business (grossista/distributore/GDO), Collaboratore et
 - i18n IT/EN, brand '’Ra mia', tema bordeaux/oro.
 
 ## Implementato (2026-06)
+### Regulatory Intelligence Engine — CORE (2026-06, questa iterazione)
+- Percorso minimo completo: SOURCE → DOCUMENT → VERSION → REQUIREMENT → KNOWLEDGE BASE → MARKET ANALYSIS → COMPLIANCE → REGULATORY SNAPSHOT. ✅
+- Backend `routers/regulatory.py` (registrato in `server.py`): CRUD admin per fonti/documenti/versioni (dedupe fingerprint, 409 su contenuto identico, diff versioni)/requisiti; `/knowledge` per produttore; `/snapshots/{analysis_id}` (ownership); `/center` (statistiche) e `/audit`. Confidence engine spiegabile (A/B/C/D + verifica umana + recency + match) e rilevamento conflitti tra fonti (mai risolti d'ufficio).
+- Integrazione AI (`routers/trade.py`): market-analysis async e compliance ora recuperano i `Requirements` reali dalla KB per paese/categoria/HS, li iniettano nel prompt, restituiscono `data.kb` (requisiti+fonti+conflitti+has_official_source) e la market-analysis crea un `RegulatorySnapshot` (`snapshot_id`). Se nessuna fonte ufficiale → "Fonte ufficiale non disponibile/verificata".
+- Seed idempotente `seed_regulatory.py`: 4 fonti ufficiali reali (EUR-Lex Reg. 1169/2011, Commissione UE DG SANTE, TARIC, FDA), 4 documenti, 14 requisiti per Germania/Francia/Spagna/USA — tutti `is_demo=True`.
+- Frontend: schermata admin `/admin/regulatory` (statistiche + tab Fonti/Documenti/Requisiti + form di creazione + verifica URL fonte + verifica umana requisito), link da pannello admin. Vista KB (confidence, affidabilità A/B/C/D, conflitti, stato fonte ufficiale) in Analisi di mercato e Compliance.
+- NON implementato in questa iterazione (come da richiesta utente): Change Detector, Update Engine automatico, Alert Engine.
+- Test: 19/19 backend pass (`tests/test_regulatory_engine.py`); UI admin verificata (smoke).
+
 ### Sessione precedente
 - Full stack, auth JWT RBAC, B2C + B2B + logistica + etichette + visibilità, import PDF (Gemini) + email, Chi siamo, integrazione logo/splash/icone.
 ### Questa iterazione (2026-06)

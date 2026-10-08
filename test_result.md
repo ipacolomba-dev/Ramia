@@ -101,3 +101,69 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Build and integrate the "Regulatory Intelligence Engine" CORE into RA MIA Trade Assistant.
+  Minimum working path: SOURCE -> DOCUMENT -> VERSION -> REQUIREMENT -> KNOWLEDGE BASE ->
+  MARKET ANALYSIS -> COMPLIANCE CHECK -> REGULATORY SNAPSHOT. Do NOT build Change Detector /
+  Alert Engine yet. Do NOT fabricate normative data (DEMO flag allowed). Respond in Italian.
+
+backend:
+  - task: "Regulatory CRUD API (sources, documents, versions, requirements, knowledge, snapshots, center, audit)"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/routers/regulatory.py"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        message: "Router registered in server.py. Admin-only CRUD for sources/documents/versions/requirements; producer-facing /knowledge; snapshot retrieval; /center stats; /audit. Confidence engine + conflict detection implemented. Idempotent DEMO seed added (seed_regulatory.py): 4 real official sources (EUR-Lex 1169/2011, EC Food Safety, TARIC, FDA), 4 docs, 14 requirements for Germania/Francia/Spagna/USA, all is_demo=True."
+  - task: "Trade Assistant grounded on Knowledge Base + Regulatory Snapshot"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/routers/trade.py"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        message: "market-analysis worker now fetches kb_requirements_for(country,category,hs_code), injects KB context into LLM prompt, attaches data.kb (requirements+sources+conflicts+has_official_source) and creates a RegulatorySnapshot (snapshot_id saved on analysis). compliance endpoint also grounds on KB and returns data.kb. Async durability flow unchanged."
+
+frontend:
+  - task: "Admin Regulatory Center UI"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/admin/regulatory.tsx"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        message: "New screen /admin/regulatory with center stats, 3 tabs (Sources/Documents/Requirements), inline create forms, source URL verify, requirement human-verify. Entry link added in admin.tsx (admin-regulatory-link). KB view (confidence + A/B/C/D reliability + conflicts + official-source status) rendered in Market Analysis and Compliance results."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 0
+
+test_plan:
+  current_focus:
+    - "Regulatory CRUD API (sources, documents, versions, requirements, knowledge, snapshots, center, audit)"
+    - "Trade Assistant grounded on Knowledge Base + Regulatory Snapshot"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      Please test the NEW Regulatory Intelligence backend end-to-end (do not re-test unrelated
+      existing endpoints). Admin: admin@saporidisicilia.it / SaporiAdmin2026!. Producer:
+      produttore@demo.it / Demo1234!.
+      Backend scenarios:
+      1) RBAC: /regulatory/sources, /documents, /requirements, /center, /audit require admin (403 for producer).
+      2) /regulatory/center returns counts (sources_total=4, documents=4, requirements=14, requirements_demo=14 on fresh demo DB).
+      3) Create a SOURCE (admin) -> create a DOCUMENT linked to it -> add a VERSION (fingerprint dedupe: identical content -> 409) -> create a REQUIREMENT linked to source+document.
+      4) /regulatory/requirements/{id}/verify: DEMO requirement -> 400; real (non-demo) requirement -> HUMAN_VERIFIED.
+      5) /regulatory/knowledge?country=Germania (producer allowed) returns requirements+sources+conflicts and confidence levels (demo => UNVERIFIED).
+      6) Trade market-analysis async flow (POST /trade/market-analysis then poll GET /trade/analyses/{id}) eventually status=ready and data.kb present + snapshot created (GET /regulatory/snapshots/{analysis_id} works and respects ownership).
+      7) /trade/compliance returns data.kb grounded on KB.
+      Note: LLM calls (Gemini) are real; allow polling time.

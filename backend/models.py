@@ -340,3 +340,80 @@ class StepToggleIn(BaseModel):
 class FindBuyersIn(BaseModel):
     country: Optional[str] = None
     category: Optional[str] = None
+
+
+# ----------------------------- Regulatory Intelligence -----------------------------
+
+SOURCE_TYPES = [
+    "OFFICIAL_GOVERNMENT", "OFFICIAL_CUSTOMS", "OFFICIAL_HEALTH", "OFFICIAL_FOODSAFETY",
+    "OFFICIAL_TARIFF", "OFFICIAL_EU", "INTERNATIONAL_ORGANIZATION", "OFFICIAL_LEGISLATION",
+    "AUTHORIZED_DATABASE", "SECONDARY_SOURCE", "UNVERIFIED_SOURCE",
+]
+REQUIREMENT_TYPES = [
+    "CUSTOMS", "TARIFF", "FOOD_SAFETY", "HEALTH", "LABEL", "PACKAGING", "INGREDIENT",
+    "ALLERGEN", "CERTIFICATION", "DOCUMENT", "IMPORTER", "LOGISTICS", "OTHER",
+]
+
+
+class SourceIn(BaseModel):
+    name: str = Field(min_length=2, max_length=200)
+    authority: str = Field(min_length=2, max_length=200)
+    country: str = Field(min_length=2, max_length=60)
+    language: Optional[str] = "it"
+    category: Optional[str] = None
+    url: str = Field(min_length=4, max_length=600)
+    source_type: Literal[tuple(SOURCE_TYPES)] = "OFFICIAL_GOVERNMENT"  # type: ignore
+    reliability: Literal["A", "B", "C", "D"] = "A"
+    notes: Optional[str] = None
+    is_demo: bool = False
+
+
+class SourceUpdateIn(BaseModel):
+    name: Optional[str] = None
+    authority: Optional[str] = None
+    url: Optional[str] = None
+    reliability: Optional[Literal["A", "B", "C", "D"]] = None
+    category: Optional[str] = None
+    notes: Optional[str] = None
+    status: Optional[Literal["active", "to_verify", "unreachable", "disabled"]] = None
+
+
+class RegDocIn(BaseModel):
+    source_id: str
+    title: str = Field(min_length=2, max_length=300)
+    url: Optional[str] = None
+    country: str = Field(min_length=2, max_length=60)
+    category: Optional[str] = None
+    language: Optional[str] = "it"
+    published_date: Optional[str] = None
+    effective_date: Optional[str] = None
+    content: str = Field(min_length=1, max_length=20000)
+    is_demo: bool = False
+
+
+class RegDocVersionIn(BaseModel):
+    content: str = Field(min_length=1, max_length=20000)
+    effective_date: Optional[str] = None
+    note: Optional[str] = None
+
+
+class RequirementIn(BaseModel):
+    country: str = Field(min_length=2, max_length=60)
+    market: Optional[str] = None
+    category: str = Field(min_length=2, max_length=60)
+    product_type: Optional[str] = None
+    hs_code: Optional[str] = None
+    ingredient: Optional[str] = None
+    requirement_type: Literal[tuple(REQUIREMENT_TYPES)] = "OTHER"  # type: ignore
+    description: str = Field(min_length=3, max_length=2000)
+    severity: Literal["low", "medium", "high"] = "medium"
+    effective_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+    source_id: str
+    document_id: Optional[str] = None
+    is_demo: bool = False
+
+
+class SourceReviewIn(BaseModel):
+    action: Literal["approve", "reject"]
+    note: Optional[str] = None

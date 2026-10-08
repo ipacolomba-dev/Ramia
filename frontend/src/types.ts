@@ -108,6 +108,104 @@ export interface TradeSource {
   reliability: "verified" | "to_verify";
 }
 
+export interface KbConfidence {
+  level: "HIGH" | "MEDIUM" | "LOW" | "UNVERIFIED";
+  reasons: string[];
+}
+
+export interface KbRequirement {
+  id: string;
+  requirement_type: string;
+  description: string;
+  severity?: "low" | "medium" | "high";
+  source_name?: string;
+  source_url?: string;
+  source_reliability?: "A" | "B" | "C" | "D";
+  is_demo?: boolean;
+  verification_status?: string;
+  confidence?: KbConfidence;
+}
+
+export interface KbSource {
+  id: string;
+  name?: string;
+  authority?: string;
+  url?: string;
+  reliability?: "A" | "B" | "C" | "D";
+  last_verified?: string | null;
+  is_demo?: boolean;
+  status?: string;
+}
+
+export interface KbConflict {
+  requirement_type: string;
+  entries: { source?: string; description?: string }[];
+  status?: string;
+  note?: string;
+}
+
+export interface KbBlock {
+  requirements: KbRequirement[];
+  sources: KbSource[];
+  conflicts: KbConflict[];
+  has_official_source: boolean;
+}
+
+export interface RegSource {
+  id: string;
+  name: string;
+  authority: string;
+  country: string;
+  category?: string | null;
+  url: string;
+  source_type: string;
+  reliability: "A" | "B" | "C" | "D";
+  notes?: string | null;
+  is_demo: boolean;
+  status: "active" | "to_verify" | "unreachable" | "disabled";
+  reachable?: boolean | null;
+  last_checked?: string | null;
+}
+
+export interface RegDocument {
+  id: string;
+  source_id: string;
+  title: string;
+  url?: string;
+  country: string;
+  category?: string | null;
+  current_version: number;
+  status: string;
+  is_demo: boolean;
+}
+
+export interface RegRequirement {
+  id: string;
+  country: string;
+  category?: string | null;
+  requirement_type: string;
+  description: string;
+  severity: "low" | "medium" | "high";
+  source_id: string;
+  source_name?: string;
+  source_reliability?: "A" | "B" | "C" | "D";
+  verification_status: string;
+  is_demo: boolean;
+}
+
+export interface RegCenter {
+  sources_active: number;
+  sources_to_verify: number;
+  sources_unreachable: number;
+  sources_total: number;
+  documents: number;
+  requirements: number;
+  requirements_demo: number;
+  snapshots: number;
+  changes_detected: number;
+  alerts_generated: number;
+}
+
 export interface MarketData {
   summary?: string;
   accessibility?: string;
@@ -129,6 +227,7 @@ export interface MarketData {
   missing_info?: string[];
   sources?: TradeSource[];
   reliability?: string;
+  kb?: KbBlock;
 }
 
 export interface TradeAnalysis {
@@ -166,6 +265,7 @@ export interface ComplianceResult {
   label_adjustment_recommended?: boolean;
   summary?: string;
   image_url?: string | null;
+  kb?: KbBlock;
 }
 
 export interface PlanStep {

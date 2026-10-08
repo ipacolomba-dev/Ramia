@@ -7,6 +7,7 @@ from datetime import timedelta
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from routers.advisor import _llm_chat, _perplexity_context
+from routers.regulatory import create_snapshot, kb_requirements_for
 from db import db
 from models import (
     ExportPlanCreateIn, FindBuyersIn, StepToggleIn, TradeComplianceIn,
@@ -96,6 +97,52 @@ def _reliability_from_sources(live: bool) -> str:
     return "verified" if live else "unverified"
 
 
+def _kb_context(kb: dict) -> str:
+    """Build an LLM context block from verified/demo requirements in the Knowledge Base."""
+    reqs = kb.get("requirements") or []
+    if not reqs:
+        return ("DATABASE NORMATIVO ’Ra mia: nessun requisito ufficiale verificato disponibile per questo "
+                "paese/prodotto. Dove non hai una base certa scrivi esattamente "
+                "'Fonte ufficiale non disponibile/verificata'.")
+    lines = []
+    for r in reqs[:40]:
+        src = r.get("source_name") or "fonte"
+        rel = r.get("source_reliability") or "D"
+        demo = " [DEMO]" if r.get("is_demo") else ""
+        lines.append(f"- [{r.get('requirement_type')}] {r.get('description')} "
+                     f"(Fonte: {src}, affidabilità {rel}{demo})")
+    txt = ("REQUISITI DAL DATABASE NORMATIVO ’Ra mia (usali come base autorevole e cita le relative fonti; "
+           "i record [DEMO] sono di riferimento e da verificare):\n" + "\n".join(lines))
+    conflicts = kb.get("conflicts") or []
+    if conflicts:
+        txt += "\n\nCONFLITTI TRA FONTI (segnalali, NON risolverli arbitrariamente):\n" + "\n".join(
+            f"- {c['requirement_type']}: fonti discordanti, richiede verifica" for c in conflicts)
+    return txt
+
+
+def _kb_public(kb: dict) -> dict:
+    """Trimmed KB payload surfaced to the client (requirements + sources + conflicts + provenance)."""
+    sources = kb.get("sources") or []
+    return {
+        "requirements": [
+            {
+                "id": r.get("id"), "requirement_type": r.get("requirement_type"),
+                "description": r.get("description"), "severity": r.get("severity"),
+                "source_name": r.get("source_name"), "source_url": r.get("source_url"),
+                "source_reliability": r.get("source_reliability"),
+                "is_demo": r.get("is_demo"), "verification_status": r.get("verification_status"),
+                "confidence": r.get("confidence"),
+            }
+            for r in (kb.get("requirements") or [])
+        ],
+        "sources": sources,
+        "conflicts": kb.get("conflicts") or [],
+        "has_official_source": any(
+            s.get("reliability") in ("A", "B") and not s.get("is_demo") for s in sources
+        ),
+    }
+
+
 # ----------------------------- Market analysis -----------------------------
 
 MARKET_SYSTEM = (
@@ -111,6 +158,7 @@ MARKET_SYSTEM = (
     "logistics (string), controls (string), risks (array di string), actions (array di string), "
     "missing_info (array di string: dati del produttore che servirebbero), "
     "sources (array di object: title, authority, url, date). "
+    "Se il DATABASE NORMATIVO fornisce requisiti, basati su quelli e cita le relative fonti. "
     "Per le fonti indica portali/documenti ufficiali (autorità doganali/sanitarie, Commissione Europea, "
     "database tariffari ufficiali) ma NON garantirne la verifica."
 )
@@ -150,12 +198,15 @@ async def market_analysis(body: TradeMarketIn, background: BackgroundTasks, user
             "product_name": p.get("name"), "version": version, "missing_info": missing}
 
 
-async def _compute_market(product: dict, extra: dict, country: str) -> tuple[dict, bool]:
-    """Run the LLM analysis. Returns (data_with_sources, live). Raises on failure/empty."""
+async def _compute_market(product: dict, extra: dict, country: str) -> tuple[dict, bool, dict]:
+    """Run the LLM analysis grounded on the regulatory Knowledge Base.
+    Returns (data_with_sources_and_kb, live, kb). Raises on failure/empty."""
     from emergentintegrations.llm.chat import UserMessage
 
     pctx, _ = _product_ctx(product, extra)
     prod_ctx = await _producer_ctx(product)
+    category = product.get("category")
+    kb = await kb_requirements_for(country, category, pctx.get("hs_code"))
     question = (
         f"Esportazione di {pctx.get('category')} ({pctx.get('name')}) dall'Italia verso {country}: "
         f"requisiti doganali, codice HS, dazi, requisiti sanitari e di sicurezza alimentare, requisiti di "
@@ -171,6 +222,7 @@ async def _compute_market(product: dict, extra: dict, country: str) -> tuple[dic
         f"PRODOTTO:\n{json.dumps(pctx, ensure_ascii=False)}",
         f"PRODUTTORE:\n{json.dumps(prod_ctx, ensure_ascii=False)}",
         f"PAESE DI DESTINAZIONE: {country}",
+        _kb_context(kb),
     ]
     if web_context:
         parts.append(f"CONTESTI WEB AGGIORNATI (con fonti):\n{web_context}")
@@ -197,7 +249,8 @@ async def _compute_market(product: dict, extra: dict, country: str) -> tuple[dic
             })
     data["sources"] = sources
     data["reliability"] = _reliability_from_sources(live)
-    return data, live
+    data["kb"] = _kb_public(kb)
+    return data, live, kb
 
 
 async def _run_market_analysis(doc_id: str):
@@ -226,13 +279,18 @@ async def _run_market_analysis(doc_id: str):
         return
 
     try:
-        data, live = await asyncio.wait_for(
+        data, live, kb = await asyncio.wait_for(
             _compute_market(product, doc.get("extra") or {}, doc["country"]), timeout=WORKER_TIMEOUT
         )
         await db.trade_analyses.update_one(
             {"_id": doc_id},
             {"$set": {"status": "ready", "data": data, "live": live, "error": None, "updated_at": now_utc()}},
         )
+        try:
+            snap_id = await create_snapshot(doc_id, doc["country"], product.get("category"), kb)
+            await db.trade_analyses.update_one({"_id": doc_id}, {"$set": {"snapshot_id": snap_id}})
+        except Exception as se:  # snapshot must never break a completed analysis
+            logger.warning("snapshot creation failed for %s: %s", doc_id, se)
         return
     except Exception as e:
         reason = "timeout" if isinstance(e, asyncio.TimeoutError) else str(e)[:300]
@@ -384,6 +442,7 @@ COMPLIANCE_SYSTEM = (
     "un dato non è disponibile usa 'warn' con nota. Restituisci SOLO JSON valido: "
     "{\"items\":[{\"area\":string,\"label\":string,\"status\":\"ok|warn|missing\",\"note\":string}], "
     "\"missing_fields\":[string], \"label_adjustment_recommended\":boolean, \"summary\":string}. "
+    "Se il DATABASE NORMATIVO fornisce requisiti, confronta i dati del prodotto proprio con quelli e cita le fonti. "
     "Copri: nome alimento, quantità netta, elenco ingredienti, allergeni, lingua richiesta, origine, produttore/"
     "importatore, dichiarazione nutrizionale, shelf life, packaging, eventuali claim."
 )
@@ -393,11 +452,13 @@ COMPLIANCE_SYSTEM = (
 async def compliance(body: TradeComplianceIn, user: dict = Depends(require_roles("producer", "admin"))):
     p = await _owned_product(body.product_id, user)
     pctx, missing = _product_ctx(p, body.extra)
+    kb = await kb_requirements_for(body.country, p.get("category"), pctx.get("hs_code"))
 
     from emergentintegrations.llm.chat import UserMessage
     parts = [
         f"DATI PRODOTTO:\n{json.dumps(pctx, ensure_ascii=False)}",
         f"PAESE DI DESTINAZIONE: {body.country}",
+        _kb_context(kb),
     ]
     if body.label_text:
         parts.append(f"TESTO ETICHETTA FORNITO:\n{body.label_text}")
@@ -414,6 +475,7 @@ async def compliance(body: TradeComplianceIn, user: dict = Depends(require_roles
     data.setdefault("missing_fields", missing)
     data["reliability"] = "unverified"
     data["image_url"] = body.image_url
+    data["kb"] = _kb_public(kb)
     return data
 
 
