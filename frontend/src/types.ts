@@ -204,6 +204,34 @@ export interface RegCenter {
   snapshots: number;
   changes_detected: number;
   alerts_generated: number;
+  monitors?: number;
+}
+
+export interface RegAlert {
+  id: string;
+  type: "version" | "requirement_new" | "requirement_verified" | "source_change";
+  country: string;
+  category?: string | null;
+  title: string;
+  detail: string;
+  severity: "low" | "medium" | "high";
+  diff?: { added?: string[]; removed?: string[] } | null;
+  source_id?: string | null;
+  document_id?: string | null;
+  requirement_id?: string | null;
+  is_demo?: boolean;
+  needs_verification?: boolean;
+  read?: boolean;
+  created_at: string;
+}
+
+export interface RegMonitor {
+  id: string;
+  product_id?: string | null;
+  product_name?: string | null;
+  country: string;
+  category?: string | null;
+  created_at: string;
 }
 
 export interface MarketData {
@@ -312,6 +340,7 @@ export interface TradeDashboard {
   analyses_completed: number;
   open_actions: number;
   alerts: number;
+  recent_alerts?: { id: string; type: string; country: string; title: string; severity: string; read: boolean; created_at: string }[];
   labels_todo: number;
   docs_missing: number;
   opportunities: number;

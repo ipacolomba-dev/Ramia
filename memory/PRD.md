@@ -25,6 +25,22 @@ Consumatore, Produttore, Business (grossista/distributore/GDO), Collaboratore et
 - i18n IT/EN, brand '’Ra mia', tema bordeaux/oro.
 
 ## Implementato (2026-06)
+### Notifiche in-app più ricche (2026-06, questa iterazione)
+- Campanella con badge "non letti" (refetch 30s) nell'hub Trade e nella dashboard → apre gli Avvisi.
+- Filtri avvisi per tipo e gravità + "Segna tutti come letti" (`GET /regulatory/alerts?type=&severity=`, `POST /regulatory/alerts/read-all`).
+- Dashboard: card "Alert normativi" con conteggio reale + sezione "Avvisi normativi" con gli ultimi 5 (stato letto/non letto) e link alla lista (`/trade/dashboard` ora restituisce `recent_alerts`).
+- Test: 16/16 backend pass (`tests/test_regulatory_notifications.py`); UI verificata (smoke dashboard).
+
+### Alert Normativi + Monitoraggio + Change Detector + Push (2026-06, questa iterazione)
+- **Monitoraggio** (produttore): `POST/GET/DELETE /regulatory/monitors` — il produttore "segue" un paese (+prodotto/categoria) idempotente.
+- **Alert Engine**: `create_alert()` genera avvisi e li distribuisce ai produttori che monitorano quel paese/categoria + invia push (best-effort). Trigger automatici: nuova versione documento (con diff), nuovo requisito, requisito verificato, e `source_change` dal Change Detector.
+- **Change Detector automatico**: all'avvio + sweep periodico (6h) + `POST /regulatory/change-detection/run` (admin) — scarica le pagine delle fonti ufficiali, ne calcola il fingerprint del testo e genera un alert "da verificare" quando cambia (prima osservazione = baseline). Onesto sui limiti: la modifica va verificata dall'admin.
+- **API Alert**: `GET /regulatory/alerts` (produttore: solo quelli dei suoi monitoraggi con stato letto/non letto; admin: tutti), `GET /regulatory/alerts/unread-count`, `POST /regulatory/alerts/{id}/read`. `/center` ora riporta changes_detected/alerts_generated/monitors. Dashboard trade: conteggio alert non letti reale.
+- **Push notifications** (Emergent managed, SuprSend relay): `POST /api/register-push` + `send_push()` (`EMERGENT_PUSH_KEY=placeholder` in dev); frontend `_layout.tsx` (handler+canale+tap) e `src/push.ts` registrati al login/apertura; `app.json` con plugin expo-notifications + googleServicesFile. ⚠️ Testabile solo su build reale dopo deploy, non in Expo Go.
+- **Frontend**: schermata `/trade/alerts` (tab Avvisi/Monitoraggi, diff, badge DEMO/da-verificare, tap per segnare letto, stop monitoraggio; admin: "Controlla fonti ufficiali ora"). Pulsante "Monitora aggiornamenti" in analisi di mercato e nel dettaglio analisi. Voce "Avvisi normativi" nell'hub Trade e nel Centro Normativo admin.
+- Fix: crash `trade/market.tsx` (import `useQuery` mancante) risolto.
+- Test: 19/19 backend pass (`tests/test_regulatory_alerts.py`); UI verificata (smoke alerts + market).
+
 ### Regulatory Intelligence Engine — CORE (2026-06, questa iterazione)
 - Percorso minimo completo: SOURCE → DOCUMENT → VERSION → REQUIREMENT → KNOWLEDGE BASE → MARKET ANALYSIS → COMPLIANCE → REGULATORY SNAPSHOT. ✅
 - Backend `routers/regulatory.py` (registrato in `server.py`): CRUD admin per fonti/documenti/versioni (dedupe fingerprint, 409 su contenuto identico, diff versioni)/requisiti; `/knowledge` per produttore; `/snapshots/{analysis_id}` (ownership); `/center` (statistiche) e `/audit`. Confidence engine spiegabile (A/B/C/D + verifica umana + recency + match) e rilevamento conflitti tra fonti (mai risolti d'ufficio).

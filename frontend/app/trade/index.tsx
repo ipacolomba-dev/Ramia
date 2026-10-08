@@ -4,6 +4,7 @@ import { Pressable, Text, View } from "react-native";
 import Ionicons from "@react-native-vector-icons/ionicons";
 
 import { Screen, ScreenHeader } from "@/src/components/ui";
+import { NotificationBell } from "@/src/components/NotificationBell";
 import { useT } from "@/src/i18n";
 import { ThemeColors, fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -22,6 +23,7 @@ export default function TradeHub() {
 
   const sections = [
     { key: "dashboard", icon: "grid", label: t("trade.dashboard"), to: "/trade/dashboard" },
+    { key: "alerts", icon: "notifications", label: t("trade.alerts"), to: "/trade/alerts" },
     { key: "history", icon: "time", label: t("trade.history"), to: "/trade/history" },
     { key: "chat", icon: "chatbubbles", label: t("trade.openChat"), to: "/advisor" },
     { key: "buyers", icon: "people", label: t("trade.findBuyers"), to: "/trade/buyers" },
@@ -29,7 +31,7 @@ export default function TradeHub() {
 
   return (
     <Screen scroll contentStyle={{ paddingBottom: 60 }}>
-      <ScreenHeader title={t("trade.title")} onBack={() => router.back()} />
+      <ScreenHeader title={t("trade.title")} onBack={() => router.back()} right={<NotificationBell />} />
       <View style={{ paddingHorizontal: spacing.lg }} testID="trade-hub">
         <View style={styles.hero}>
           <View style={styles.heroIcon}>

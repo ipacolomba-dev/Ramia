@@ -53,7 +53,7 @@ SOURCES = {
         "authority": "U.S. Food and Drug Administration",
         "country": "USA",
         "category": None,
-        "url": "https://www.fda.gov/food/importing-food-products-united-states",
+        "url": "https://www.fda.gov/food",
         "source_type": "OFFICIAL_FOODSAFETY",
         "reliability": "A",
     },

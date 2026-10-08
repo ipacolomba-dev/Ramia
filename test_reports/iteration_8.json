@@ -1,0 +1,40 @@
+{
+  "summary": "Enrichments notifiche regolatorie (filtri alerts, read-all, dashboard recent_alerts + unread) verificati end-to-end backend-only con pytest HTTP reali su EXPO_PUBLIC_BACKEND_URL. 16/16 PASSED in ~3.9s (cd /app/backend && python -m pytest tests/test_regulatory_notifications.py -v -o addopts=''). Coperti tutti i casi del review request: (1) GET /api/regulatory/alerts?type=requirement_new per producer restituisce solo quel type; GET ?severity=high solo high; combinazione type+severity applica entrambi; nessun filtro = tutti gli alert producer-visibili (Germania-only per il producer monitorante). (2) Admin GET /api/regulatory/alerts?type=version restituisce solo version alerts cross-producer. (3) POST /api/regulatory/alerts/read-all producer segna TUTTI gli alert visibili come letti -> successivo GET /unread-count = 0; chiamata admin ritorna esattamente {ok:true, marked:0} senza errori. (4) GET /api/trade/dashboard producer monitorante restituisce 'alerts' integer e 'recent_alerts' array (<=5 elementi, ciascuno con id, type, country, title, severity, read). (5) Regression: creando un requisito (admin) per paese monitorato il count unread del producer incrementa di 1 e il nuovo alert appare come primo elemento di recent_alerts; read-all resetta unread a 0 e tutti i recent_alerts hanno read=True; nuovo requisito dopo read-all torna a incrementare unread e appare non letto. (6) RBAC invariato: producer riceve 403 su POST /sources, /requirements, /documents; /regulatory/alerts richiede autenticazione (401/403 senza token) ed e' accessibile a producer e admin (200). Nessun regression trigger per i casi gia' coperti in test_regulatory_alerts.py.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_regulatory_notifications.py",
+    "/app/test_reports/pytest/pytest_iteration8.xml",
+    "/app/test_reports/iteration_8.json"
+  ],
+  "action_items": [
+    "Nessuna azione richiesta: tutti i flussi delle nuove enrichment di notifiche (filtri alerts, read-all producer+admin, dashboard recent_alerts + unread count, regression) funzionano come specificato."
+  ],
+  "critical_code_review_comments": [
+    "routers/regulatory.py:list_alerts: per admin applica correttamente type/severity direttamente nella query Mongo; per producer applica filtri in-memory sul set di alerts matching dei suoi monitor (coerente con _alerts_for_producer).",
+    "routers/regulatory.py:mark_all_read: admin ritorna correttamente {ok:true, marked:0} senza side effect (no-op by design, dato che admin non ha reads tracked). Producer upserta un read-doc per ogni alert visibile (idempotente, usa upsert).",
+    "routers/trade.py:dashboard: calcola 'alerts' come count degli alert matching dei monitor non letti dal producer; 'recent_alerts' prende top 5 ordinati per created_at desc, mappa esattamente i campi richiesti (id, type, country, title, severity, read).",
+    "routers/trade.py:dashboard: per admin ritorna total alerts count e recent dall'intero DB (reads=empty set -> read sempre False, comportamento consistente).",
+    "Serializzazione corretta: _clean_alert aggiunge il campo 'read' booleano, _id convertito in id, datetime iso-formatted. Nessun ObjectId leak."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_regulatory_notifications.py (nuovo — suite HTTP end-to-end per filtri alerts/read-all/dashboard recent_alerts/regression)"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16)",
+    "frontend": "N/A (backend only)"
+  },
+  "seed_data_creation": "La suite crea dati TEST_NOTIF_ prefissati: diversi requisiti DEMO (country=Germania, category=olio) per generare requirement_new alerts di severity varia; documenti TEST_NOTIF_DOC e TEST_NOTIF_ADMIN_DOC con una v2 per generare version alerts (severity high). Nessuna modifica a dati seed di produzione. Riusa il monitor Germania gia' esistente per produttore@demo.it (idempotente).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Suite riutilizzabile: cd /app/backend && python -m pytest tests/test_regulatory_notifications.py -v -o addopts=''. Totalmente HTTP-only verso EXPO_PUBLIC_BACKEND_URL. L'ordine dei test dentro TestReadAllAndDashboard e' importante (prefissi test_1..test_5) perche' read-all azzera lo stato unread del producer. La suite coesiste con test_regulatory_alerts.py senza conflitti. Non invoca endpoint LLM-heavy ne' change-detection. Entrambi admin e producer read-all restituiscono {ok:true, marked:N} con marked>=0 (0 per admin by design, >=1 per producer con alerts visibili). Dashboard /trade/dashboard 'alerts' integer, 'recent_alerts' max 5 elementi con shape {id,type,country,title,severity,read}.",
+  "rca_of_issue": "N/A — nessun bug trovato."
+}

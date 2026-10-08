@@ -30,6 +30,12 @@ export default function AnalysisDetail() {
     onError: (e: Error) => toast.show(e.message, "error"),
   });
 
+  const monitor = useMutation({
+    mutationFn: () => api("/regulatory/monitors", { method: "POST", body: { product_id: q.data?.product_id, country: q.data?.country } }),
+    onSuccess: () => toast.show(t("alerts.monitorAdded")),
+    onError: (e: Error) => toast.show(e.message, "error"),
+  });
+
   if (q.isLoading) return <CenterLoader />;
   if (q.isError || !q.data)
     return (
@@ -63,7 +69,8 @@ export default function AnalysisDetail() {
           </View>
         )}
         <MarketAnalysisView data={a.data} />
-        <Btn title={t("trade.createPlan")} icon="map" variant="secondary" testID="analysis-create-plan" loading={createPlan.isPending} onPress={() => createPlan.mutate()} style={{ marginTop: spacing.xl }} />
+        <Btn title={t("alerts.monitor")} icon="notifications-outline" variant="outline" testID="analysis-monitor" loading={monitor.isPending} onPress={() => monitor.mutate()} style={{ marginTop: spacing.lg }} />
+        <Btn title={t("trade.createPlan")} icon="map" variant="secondary" testID="analysis-create-plan" loading={createPlan.isPending} onPress={() => createPlan.mutate()} style={{ marginTop: spacing.sm }} />
       </View>
     </Screen>
   );

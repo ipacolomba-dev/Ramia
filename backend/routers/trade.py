@@ -616,12 +616,41 @@ async def dashboard(user: dict = Depends(require_roles("producer", "admin"))):
          "summary": (a.get("data") or {}).get("summary", "")[:120]}
         for a in recent
     ]
+    # Regulatory alerts: unread alerts matching this producer's monitors
+    alerts_count = 0
+    recent_alerts = []
+    monitors = await db.reg_monitors.find({} if user["role"] == "admin" else {"producer_id": pid}).to_list(500)
+    if user["role"] == "admin":
+        alerts_count = await db.reg_alerts.count_documents({})
+        alert_docs = await db.reg_alerts.find({}).sort("created_at", -1).to_list(300)
+        reads = set()
+    elif monitors:
+        ors = []
+        for m in monitors:
+            clause = {"country": {"$regex": f"^{m['country']}$", "$options": "i"}}
+            if m.get("category"):
+                clause["$or"] = [{"category": None}, {"category": {"$regex": f"^{m['category']}$", "$options": "i"}}]
+            ors.append(clause)
+        alert_docs = await db.reg_alerts.find({"$or": ors}).sort("created_at", -1).to_list(300)
+        read_docs = await db.reg_alert_reads.find({"producer_id": pid}).to_list(1000)
+        reads = {r["alert_id"] for r in read_docs}
+        alerts_count = sum(1 for a in alert_docs if a["_id"] not in reads)
+    else:
+        alert_docs, reads = [], set()
+    for a in alert_docs[:5]:
+        recent_alerts.append({
+            "id": str(a["_id"]), "type": a.get("type"), "country": a.get("country"),
+            "title": a.get("title"), "severity": a.get("severity"),
+            "read": a["_id"] in reads,
+            "created_at": a["created_at"].isoformat() if hasattr(a.get("created_at"), "isoformat") else a.get("created_at"),
+        })
     return {
         "markets_monitored": len(markets),
         "products_analyzed": len(products_analyzed),
         "analyses_completed": len(ready),
         "open_actions": open_actions,
-        "alerts": 0,
+        "alerts": alerts_count,
+        "recent_alerts": recent_alerts,
         "labels_todo": label_todo,
         "docs_missing": docs_missing,
         "opportunities": 0,

@@ -1,0 +1,46 @@
+{
+  "summary": "Regulatory Alerts + Monitors + Change Detector + Push relay verificati end-to-end backend-only con pytest HTTP reali su EXPO_PUBLIC_BACKEND_URL. 19/19 PASSED in ~10.5s (cd /app/backend && python -m pytest tests/test_regulatory_alerts.py -v -o addopts=''). Coperti tutti i casi del review request: monitor idempotente (POST /api/regulatory/monitors stessa coppia -> stesso id), ownership delete (producer2 su monitor di producer -> 404, delete own -> 200 + sparisce dalla lista), alert generation (requirement_new su POST /requirements, version su POST /documents/{id}/versions con diff.added/removed non vuoto, requirement_verified su POST /requirements/{id}/verify con non-demo; DEMO verify correttamente -> 400), fan-out per paese (producer monitoring Germania vede solo alerts country=Germania, producer2 senza monitor non vede alerts Germania), read state (POST /alerts/{id}/read decrementa unread-count), RBAC (admin GET /alerts restituisce tutti >= producer; /change-detection/run per producer -> 403), Change Detector (POST /change-detection/run admin -> {scanned, changes[], changes_count} integer, run consecutivo non va in crash e changes_count resta coerente al post-baseline), /regulatory/center include changes_detected/alerts_generated/monitors come integer con valori >=1, Push relay (POST /register-push validation 422 su body incompleto, 500 pulito su body valido in dev con EMERGENT_PUSH_KEY=placeholder — NON 422/crash), Trade dashboard GET /trade/dashboard ritorna 'alerts' integer coerente con unread-count del produttore.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/regulatory/requirements", "issue": "requirement_type usa un Literal (CUSTOMS/TARIFF/FOOD_SAFETY/HEALTH/LABEL/PACKAGING/INGREDIENT/ALLERGEN/CERTIFICATION/DOCUMENT/IMPORTER/LOGISTICS/OTHER) ma la UI/documentazione in italiano potrebbe suggerire label 'etichettatura'. Non e' un bug di backend, ma vale la pena esporre un enum coerente al frontend."},
+      {"endpoint": "GET /api/trade/dashboard", "issue": "Il conteggio 'alerts' su dashboard usa country-only matching (ignora category), quindi puo' essere >= unread-count della GET /api/regulatory/alerts/unread-count (che rispetta anche category). Comportamento coerente ma asimmetrico — segnalato per allineamento futuro."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_regulatory_alerts.py",
+    "/app/test_reports/pytest/pytest_iteration7.xml",
+    "/app/test_reports/iteration_7.json"
+  ],
+  "action_items": [
+    "Nessuna azione richiesta: tutti i flussi alert/monitor/change-detector/push funzionano come specificato.",
+    "(Opzionale) Allineare il matching alerts del /trade/dashboard a quello di /regulatory/alerts (country+category) per rendere i due conteggi perfettamente consistenti."
+  ],
+  "critical_code_review_comments": [
+    "routers/regulatory.py:_matching_monitor_producers e _alerts_for_producer gestiscono correttamente category-agnostic matching (monitor senza category oppure alert senza category -> match su country).",
+    "create_alert never-blocks: push errors sono catturati e loggati, non interrompono la creazione dell'alert (ottimo per resilienza).",
+    "run_change_detection e' idempotente sul fingerprint: la prima osservazione crea solo la baseline (nessun alert spurio), le osservazioni successive confrontano fingerprint SHA256 del testo normalizzato.",
+    "verify_requirement blocca correttamente i DEMO (400 'Un requisito DEMO non puo' essere verificato come reale') ed emette un alert requirement_verified solo per non-demo.",
+    "POST /documents/{id}/versions calcola diff.added/removed per righe non vuote e emette alert type=version con diff embedded (utile per UI).",
+    "routers/push.py: mapping upstream status codes e' corretto (401->500 'EMERGENT_PUSH_KEY missing or invalid', 5xx->502 'Push provider unavailable'); validazione Pydantic ritorna 422 sui campi mancanti.",
+    "routers/trade.py:dashboard calcola alerts in base ai monitors del produttore corrente (RBAC-safe) e restituisce int, come richiesto dal review."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_regulatory_alerts.py (nuovo — suite HTTP end-to-end per alerts/monitors/change-detector/push riusabile)"
+  ],
+  "success_rate": {
+    "backend": "100% (19/19)",
+    "frontend": "N/A (backend only)"
+  },
+  "seed_data_creation": "La suite crea dati di test prefissati TEST_: 1 monitor Germania per produttore@demo.it (riusato), 1 requirement DEMO (requirement_new alert), 1 documento TEST_ALERT_DOC con 2 versioni (version alert con diff), 1 source TEST_NONDEMO_SRC + 1 requirement non-demo verificato (requirement_verified alert), piu' alcuni DEMO per il check 400 verify. Niente modifica a dati seed di produzione.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Suite riutilizzabile: cd /app/backend && python -m pytest tests/test_regulatory_alerts.py -v -o addopts=''. Totalmente HTTP-only, legge BASE URL da EXPO_PUBLIC_BACKEND_URL (fallback a sicilia-commerce.preview). NON richiede chiamate LLM. Il POST /api/regulatory/change-detection/run fa fetch HTTP reale verso EUR-Lex/EC/TARIC/FDA quindi puo' richiedere ~5-15s di rete. Il requirement_type deve essere uno di: CUSTOMS, TARIFF, FOOD_SAFETY, HEALTH, LABEL, PACKAGING, INGREDIENT, ALLERGEN, CERTIFICATION, DOCUMENT, IMPORTER, LOGISTICS, OTHER (vedere models.py Literal). EMERGENT_PUSH_KEY e' 'placeholder' in dev -> /api/register-push ritorna 500 (mappato da upstream 401) ed e' il comportamento atteso; validazione Pydantic funziona (422 su body mancante). Dashboard /api/trade/dashboard 'alerts' usa matching country-only quindi puo' essere >= unread-count del regulatory alerts.",
+  "rca_of_issue": "N/A — nessun bug trovato in questa iterazione sulle nuove feature. Il bug noto della iteration 6 (NoneType.lower() in kb_requirements_for) e' gia' stato risolto e la catena KB-grounded continua a funzionare."
+}

@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from db import client, db
-from routers import admin, advisor, auth, b2b, imports, logistics, market, profiles, regulatory, trade, uploads
+from routers import admin, advisor, auth, b2b, imports, logistics, market, profiles, push, regulatory, trade, uploads
 from seed import seed
 from seed_regulatory import seed_regulatory
 from storage import init_storage
@@ -25,6 +25,7 @@ async def lifespan(app: FastAPI):
     await seed()
     await seed_regulatory()
     await trade.start_recovery()
+    await regulatory.start_change_detector()
     yield
     client.close()
 
@@ -51,6 +52,7 @@ app.include_router(profiles.router, prefix=api_router_prefix)
 app.include_router(advisor.router, prefix=api_router_prefix)
 app.include_router(trade.router, prefix=api_router_prefix)
 app.include_router(regulatory.router, prefix=api_router_prefix)
+app.include_router(push.router, prefix=api_router_prefix)
 
 
 @app.get("/api")

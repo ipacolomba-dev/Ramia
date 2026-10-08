@@ -68,6 +68,8 @@ export default function RegulatoryCenter() {
           <Text style={styles.disclaimerText}>{t("reg.disclaimer")}</Text>
         </View>
 
+        <Btn title={t("alerts.title")} icon="notifications" variant="outline" size="sm" testID="reg-alerts-link" onPress={() => router.push("/trade/alerts")} style={{ marginTop: spacing.md }} />
+
         <View style={styles.tabs}>
           <Chip label={t("reg.tab.sources")} selected={tab === "sources"} onPress={() => setTab("sources")} testID="reg-tab-sources" />
           <Chip label={t("reg.tab.documents")} selected={tab === "documents"} onPress={() => setTab("documents")} testID="reg-tab-documents" />

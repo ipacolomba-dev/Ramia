@@ -8,24 +8,29 @@ linked to a source (+document version). Demo records are explicitly flagged is_d
 Confidence is explainable (computed from real factors), and conflicting sources are surfaced,
 never silently resolved.
 """
+import asyncio
 import hashlib
 import logging
+import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db import db
 from models import (
-    RegDocIn, RegDocVersionIn, RequirementIn, SourceIn, SourceUpdateIn, now_utc,
+    MonitorIn, RegDocIn, RegDocVersionIn, RequirementIn, SourceIn, SourceUpdateIn, now_utc,
 )
+from routers.push import send_push
 from security import current_user, require_roles
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/regulatory", tags=["regulatory"])
 
 RECENT_YEARS = 3
+CHANGE_SWEEP_INTERVAL = 6 * 3600  # periodic auto change-detection cadence (seconds)
+_detector_task: "asyncio.Task | None" = None
 
 
 def _hash(text: str) -> str:
@@ -203,6 +208,139 @@ async def create_snapshot(analysis_id: str, country: str, category: str | None, 
     return snap_id
 
 
+# --------------------------- Alert engine ---------------------------
+
+def _clean_alert(a: dict, read: bool = False) -> dict:
+    d = _clean(a)
+    d["read"] = read
+    return d
+
+
+async def _matching_monitor_producers(country: str, category: str | None) -> list[str]:
+    """Producer ids monitoring this country (category-agnostic if the alert has no category,
+    or if the monitor itself has no category)."""
+    q: dict = {"country": {"$regex": f"^{country}$", "$options": "i"}}
+    monitors = await db.reg_monitors.find(q).to_list(1000)
+    ids = set()
+    for m in monitors:
+        mcat = (m.get("category") or "").lower()
+        acat = (category or "").lower()
+        if not acat or not mcat or mcat == acat:
+            ids.add(m["producer_id"])
+    return list(ids)
+
+
+async def create_alert(alert_type: str, country: str, category: str | None, title: str,
+                       detail: str, *, severity: str = "medium", diff: dict | None = None,
+                       source_id: str | None = None, document_id: str | None = None,
+                       requirement_id: str | None = None, is_demo: bool = False,
+                       needs_verification: bool = False) -> str:
+    alert_id = str(uuid.uuid4())
+    doc = {
+        "_id": alert_id, "type": alert_type, "country": country, "category": category,
+        "title": title, "detail": detail, "severity": severity, "diff": diff,
+        "source_id": source_id, "document_id": document_id, "requirement_id": requirement_id,
+        "is_demo": is_demo, "needs_verification": needs_verification,
+        "created_at": now_utc(),
+    }
+    await db.reg_alerts.insert_one(doc)
+    producers = await _matching_monitor_producers(country, category)
+    if producers:
+        try:
+            await send_push(
+                recipients=producers,
+                data={"title": f"Avviso normativo · {country}", "message": title,
+                      "action_url": "/trade/alerts"},
+                idempotency_key=f"regalert-{alert_id}",
+            )
+        except Exception as e:  # push must never block alert creation
+            logger.warning("push for alert %s failed: %s", alert_id, e)
+    return alert_id
+
+
+# --------------------------- Change detector (official sources) ---------------------------
+
+def _extract_text(html: str) -> str:
+    """Very small HTML->text normalizer for fingerprinting (MVP, honest about limits)."""
+    html = re.sub(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>", " ", html)
+    text = re.sub(r"(?s)<[^>]+>", " ", html)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+async def check_source_for_changes(source: dict) -> dict | None:
+    """Fetch a source URL, fingerprint its visible text, and raise an alert if it changed
+    versus the last stored fingerprint. First observation only establishes the baseline."""
+    url = source.get("url")
+    if not url:
+        return None
+    now = now_utc()
+    content = None
+    reachable = False
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            r = await client.get(url, headers={"User-Agent": "RaMiaRegulatoryBot/1.0"})
+        reachable = r.status_code < 400
+        if reachable:
+            content = _extract_text(r.text)
+    except Exception as e:
+        logger.info("change-detector unreachable %s: %s", source["_id"], e)
+
+    upd: dict = {"content_checked_at": now, "reachable": reachable, "updated_at": now}
+    result = None
+    if content:
+        fp = _hash(content)
+        prev = source.get("content_fingerprint")
+        upd["content_fingerprint"] = fp
+        if prev and prev != fp:
+            alert_id = await create_alert(
+                "source_change", source.get("country", ""), source.get("category"),
+                f"Possibile modifica alla fonte: {source.get('name')}",
+                ("È stata rilevata una variazione nel contenuto della pagina ufficiale. "
+                 "Richiede verifica da parte dell'amministratore prima di aggiornare i requisiti."),
+                severity="high", source_id=source["_id"],
+                is_demo=source.get("is_demo", False), needs_verification=True,
+            )
+            result = {"source_id": source["_id"], "alert_id": alert_id, "name": source.get("name")}
+    await db.reg_sources.update_one({"_id": source["_id"]}, {"$set": upd})
+    return result
+
+
+async def run_change_detection() -> dict:
+    """Sweep all non-disabled sources. Returns summary of detected changes."""
+    sources = await db.reg_sources.find({"status": {"$ne": "disabled"}}).to_list(500)
+    changes = []
+    for s in sources:
+        try:
+            res = await check_source_for_changes(s)
+            if res:
+                changes.append(res)
+        except Exception as e:  # pragma: no cover
+            logger.warning("change-detector error for %s: %s", s.get("_id"), e)
+    logger.info("change-detection: %s source(s) scanned, %s change(s)", len(sources), len(changes))
+    return {"scanned": len(sources), "changes": changes, "changes_count": len(changes)}
+
+
+async def _detector_loop():
+    while True:
+        await asyncio.sleep(CHANGE_SWEEP_INTERVAL)
+        try:
+            await run_change_detection()
+        except Exception as e:  # pragma: no cover
+            logger.error("change-detector loop error: %s", e)
+
+
+async def start_change_detector():
+    """Baseline sweep on startup + periodic auto-detection (called from app lifespan)."""
+    global _detector_task
+    try:
+        await run_change_detection()
+    except Exception as e:  # pragma: no cover
+        logger.error("startup change-detection error: %s", e)
+    if _detector_task is None or _detector_task.done():
+        _detector_task = asyncio.create_task(_detector_loop())
+
+
 # --------------------------- Sources ---------------------------
 
 @router.post("/sources")
@@ -323,6 +461,13 @@ async def add_version(document_id: str, body: RegDocVersionIn, user: dict = Depe
     diff = _diff_versions(prev.get("content") if prev else "", body.content)
     await _audit(user, "version", "document", document_id, before={"version": prev["version"] if prev else 0},
                  after={"version": new_v})
+    await create_alert(
+        "version", doc.get("country", ""), doc.get("category"),
+        f"Nuova versione del documento: {doc.get('title')}",
+        body.note or "È stata pubblicata una nuova versione del documento normativo.",
+        severity="high", diff=diff, document_id=document_id, source_id=doc.get("source_id"),
+        is_demo=doc.get("is_demo", False),
+    )
     return {"document_id": document_id, "version": new_v, "diff": diff}
 
 
@@ -374,6 +519,13 @@ async def create_requirement(body: RequirementIn, user: dict = Depends(require_r
     }
     await db.reg_requirements.insert_one(doc)
     await _audit(user, "create", "requirement", doc["_id"], after={"type": body.requirement_type, "country": body.country})
+    await create_alert(
+        "requirement_new", body.country, body.category,
+        f"Nuovo requisito ({body.requirement_type}) per {body.country}",
+        body.description[:300], severity=body.severity,
+        requirement_id=doc["_id"], source_id=body.source_id, document_id=body.document_id,
+        is_demo=is_demo,
+    )
     return _clean(doc)
 
 
@@ -400,7 +552,142 @@ async def verify_requirement(req_id: str, user: dict = Depends(require_roles("ad
         "verification_status": "HUMAN_VERIFIED", "last_verified": now_utc(),
     }})
     await _audit(user, "verify", "requirement", req_id, reason="human_verified")
+    await create_alert(
+        "requirement_verified", r.get("country", ""), r.get("category"),
+        f"Requisito verificato ({r.get('requirement_type')}) per {r.get('country')}",
+        "Un amministratore ha verificato ufficialmente questo requisito.",
+        severity="low", requirement_id=req_id, source_id=r.get("source_id"),
+    )
     return {"ok": True, "verification_status": "HUMAN_VERIFIED"}
+
+
+# --------------------------- Monitors (producer "follow") ---------------------------
+
+@router.post("/monitors")
+async def create_monitor(body: MonitorIn, user: dict = Depends(require_roles("producer", "admin"))):
+    pid = str(user["_id"])
+    category = body.category
+    product_name = None
+    if body.product_id:
+        p = await db.products.find_one({"_id": body.product_id})
+        if p:
+            category = category or p.get("category")
+            product_name = p.get("name")
+    existing = await db.reg_monitors.find_one({
+        "producer_id": pid, "country": {"$regex": f"^{body.country}$", "$options": "i"},
+        "product_id": body.product_id,
+    })
+    if existing:
+        return _clean(existing)
+    doc = {
+        "_id": str(uuid.uuid4()), "producer_id": pid, "product_id": body.product_id,
+        "product_name": product_name, "country": body.country, "category": category,
+        "created_at": now_utc(),
+    }
+    await db.reg_monitors.insert_one(doc)
+    return _clean(doc)
+
+
+@router.get("/monitors")
+async def list_monitors(user: dict = Depends(require_roles("producer", "admin"))):
+    q = {} if user["role"] == "admin" else {"producer_id": str(user["_id"])}
+    docs = await db.reg_monitors.find(q).sort("created_at", -1).to_list(200)
+    return [_clean(d) for d in docs]
+
+
+@router.delete("/monitors/{monitor_id}")
+async def delete_monitor(monitor_id: str, user: dict = Depends(require_roles("producer", "admin"))):
+    q = {"_id": monitor_id}
+    if user["role"] != "admin":
+        q["producer_id"] = str(user["_id"])
+    res = await db.reg_monitors.delete_one(q)
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Monitoraggio non trovato")
+    return {"ok": True}
+
+
+# --------------------------- Alerts ---------------------------
+
+async def _alerts_for_producer(pid: str) -> list[dict]:
+    monitors = await db.reg_monitors.find({"producer_id": pid}).to_list(500)
+    if not monitors:
+        return []
+    ors = []
+    for m in monitors:
+        clause: dict = {"country": {"$regex": f"^{m['country']}$", "$options": "i"}}
+        if m.get("category"):
+            clause["$or"] = [{"category": None}, {"category": {"$regex": f"^{m['category']}$", "$options": "i"}}]
+        ors.append(clause)
+    return await db.reg_alerts.find({"$or": ors}).sort("created_at", -1).to_list(200)
+
+
+@router.get("/alerts")
+async def list_alerts(user: dict = Depends(require_roles("producer", "admin")),
+                      type: str | None = Query(None), severity: str | None = Query(None)):
+    if user["role"] == "admin":
+        q: dict = {}
+        if type:
+            q["type"] = type
+        if severity:
+            q["severity"] = severity
+        docs = await db.reg_alerts.find(q).sort("created_at", -1).to_list(300)
+        reads = set()
+    else:
+        pid = str(user["_id"])
+        docs = await _alerts_for_producer(pid)
+        if type:
+            docs = [a for a in docs if a.get("type") == type]
+        if severity:
+            docs = [a for a in docs if a.get("severity") == severity]
+        read_docs = await db.reg_alert_reads.find({"producer_id": pid}).to_list(1000)
+        reads = {r["alert_id"] for r in read_docs}
+    return [_clean_alert(a, read=a["_id"] in reads) for a in docs]
+
+
+@router.post("/alerts/read-all")
+async def mark_all_read(user: dict = Depends(require_roles("producer", "admin"))):
+    if user["role"] == "admin":
+        return {"ok": True, "marked": 0}
+    pid = str(user["_id"])
+    docs = await _alerts_for_producer(pid)
+    now = now_utc()
+    marked = 0
+    for a in docs:
+        await db.reg_alert_reads.update_one(
+            {"producer_id": pid, "alert_id": a["_id"]},
+            {"$set": {"producer_id": pid, "alert_id": a["_id"], "at": now}},
+            upsert=True,
+        )
+        marked += 1
+    return {"ok": True, "marked": marked}
+
+
+@router.get("/alerts/unread-count")
+async def unread_count(user: dict = Depends(require_roles("producer", "admin"))):
+    if user["role"] == "admin":
+        return {"count": await db.reg_alerts.count_documents({})}
+    pid = str(user["_id"])
+    docs = await _alerts_for_producer(pid)
+    read_docs = await db.reg_alert_reads.find({"producer_id": pid}).to_list(1000)
+    reads = {r["alert_id"] for r in read_docs}
+    return {"count": sum(1 for a in docs if a["_id"] not in reads)}
+
+
+@router.post("/alerts/{alert_id}/read")
+async def mark_alert_read(alert_id: str, user: dict = Depends(require_roles("producer", "admin"))):
+    pid = str(user["_id"])
+    await db.reg_alert_reads.update_one(
+        {"producer_id": pid, "alert_id": alert_id},
+        {"$set": {"producer_id": pid, "alert_id": alert_id, "at": now_utc()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@router.post("/change-detection/run")
+async def change_detection_run(user: dict = Depends(require_roles("admin"))):
+    """Manually trigger a change-detection sweep over official sources."""
+    return await run_change_detection()
 
 
 # --------------------------- Knowledge Base (producer read) ---------------------------
@@ -442,8 +729,9 @@ async def regulatory_center(user: dict = Depends(require_roles("admin"))):
         "requirements": await db.reg_requirements.count_documents({"active": True}),
         "requirements_demo": await db.reg_requirements.count_documents({"active": True, "is_demo": True}),
         "snapshots": await db.reg_snapshots.count_documents({}),
-        "changes_detected": 0,
-        "alerts_generated": 0,
+        "changes_detected": await db.reg_alerts.count_documents({"type": "source_change"}),
+        "alerts_generated": await db.reg_alerts.count_documents({}),
+        "monitors": await db.reg_monitors.count_documents({}),
     }
 
 

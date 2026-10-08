@@ -417,3 +417,9 @@ class RequirementIn(BaseModel):
 class SourceReviewIn(BaseModel):
     action: Literal["approve", "reject"]
     note: Optional[str] = None
+
+
+class MonitorIn(BaseModel):
+    product_id: Optional[str] = None
+    country: str = Field(min_length=2, max_length=60)
+    category: Optional[str] = None

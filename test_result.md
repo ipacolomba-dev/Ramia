@@ -129,6 +129,35 @@ backend:
         message: "market-analysis worker now fetches kb_requirements_for(country,category,hs_code), injects KB context into LLM prompt, attaches data.kb (requirements+sources+conflicts+has_official_source) and creates a RegulatorySnapshot (snapshot_id saved on analysis). compliance endpoint also grounds on KB and returns data.kb. Async durability flow unchanged."
 
 frontend:
+  - task: "Richer in-app notifications (unread bell, alert filters, mark-all-read, dashboard recent alerts)"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/routers/regulatory.py"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        message: "Backend: GET /regulatory/alerts now accepts optional type & severity query filters (producer list filtered in Python, admin via query); POST /regulatory/alerts/read-all marks all of a producer's visible alerts read (admin no-op). GET /trade/dashboard now returns recent_alerts (last 5 with read flag) alongside integer alerts count. Frontend: reusable NotificationBell (unread badge, 30s refetch) in Trade hub + dashboard headers; alerts screen gains type/severity filter chips + 'mark all read' button; dashboard shows recent alerts section. Smoke-verified: type filter (3 requirement_new all match), dashboard recent=5, read-all marked 6 -> unread 0."
+  - task: "Regulatory Alert Engine + Monitors + Change Detector + Push relay"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/routers/regulatory.py"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        message: "Added producer Monitors (POST/GET/DELETE /regulatory/monitors, idempotent). Alert engine: create_alert() fans out to monitoring producers (country + optional category) and sends push (best-effort). Alerts auto-generated on add_version (with diff), create_requirement, verify_requirement, and source_change from the Change Detector. Alerts API: GET /regulatory/alerts (producer sees alerts matching monitors w/ read flag; admin sees all), GET /regulatory/alerts/unread-count, POST /regulatory/alerts/{id}/read. Change Detector: fetches each non-disabled source URL, fingerprints visible text, raises source_change alert on diff (baseline on first run); manual POST /regulatory/change-detection/run (admin) + startup/periodic sweep (start_change_detector). /center now reports changes_detected/alerts_generated/monitors. Push relay router /api/register-push + send_push() per Emergent playbook (EMERGENT_PUSH_KEY=placeholder in dev). Trade /dashboard alerts count wired to unread alerts. Smoke-verified via curl: monitor create, requirement->alert, producer alerts+unread-count=1, change-detection scanned 6/0 changes."
+
+frontend:
+  - task: "Regulatory Alerts + Monitors UI + push registration"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/trade/alerts.tsx"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        message: "New /trade/alerts screen (tabs Avvisi/Monitoraggi): alert cards with type icon, diff add/removed, DEMO/to-verify badges, tap-to-read, unread dot; monitors list with stop. Admin sees all alerts + 'Check official sources now' (change-detection run). Entry added to Trade hub (sections) and admin Regulatory Center. 'Monitora aggiornamenti' button added to market.tsx result and analysis/[id].tsx. Push: _layout.tsx module-scope handler+channel+tap listeners; src/push.ts registerForPush() wired into auth signIn + app-open; app.json expo-notifications plugin + googleServicesFile. (Push only testable on real device build; UI smoke-verified.)"
   - task: "Admin Regulatory Center UI"
     implemented: true
     working: "NA"
@@ -146,8 +175,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Regulatory CRUD API (sources, documents, versions, requirements, knowledge, snapshots, center, audit)"
-    - "Trade Assistant grounded on Knowledge Base + Regulatory Snapshot"
+    - "Richer in-app notifications (unread bell, alert filters, mark-all-read, dashboard recent alerts)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"

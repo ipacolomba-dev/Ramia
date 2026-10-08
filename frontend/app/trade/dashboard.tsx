@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import Ionicons from "@react-native-vector-icons/ionicons";
 
 import { api } from "@/src/api";
 import { CenterLoader, ErrorBanner, Screen, ScreenHeader } from "@/src/components/ui";
+import { NotificationBell } from "@/src/components/NotificationBell";
 import { useT } from "@/src/i18n";
 import { ThemeColors, fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import type { TradeDashboard } from "@/src/types";
@@ -40,7 +41,7 @@ export default function TradeDashboardScreen() {
 
   return (
     <Screen scroll contentStyle={{ paddingBottom: 60 }}>
-      <ScreenHeader title={t("trade.dashboard")} onBack={() => router.back()} />
+      <ScreenHeader title={t("trade.dashboard")} onBack={() => router.back()} right={<NotificationBell />} />
       <View style={{ paddingHorizontal: spacing.lg }} testID="trade-dashboard">
         <View style={styles.grid}>
           {cards.map((c) => (
@@ -53,6 +54,27 @@ export default function TradeDashboardScreen() {
             </View>
           ))}
         </View>
+
+        {(d.recent_alerts ?? []).length > 0 && (
+          <>
+            <View style={styles.alertHead}>
+              <Text style={styles.sectionTitle}>{t("alerts.title")}</Text>
+              <Pressable onPress={() => router.push("/trade/alerts")} testID="dash-see-alerts" hitSlop={8}>
+                <Text style={styles.seeAll}>{t("alerts.tab.alerts")} ›</Text>
+              </Pressable>
+            </View>
+            {(d.recent_alerts ?? []).map((a) => (
+              <Pressable key={a.id} testID={`dash-alert-${a.id}`} onPress={() => router.push("/trade/alerts")} style={styles.activity}>
+                <Ionicons name="notifications" size={16} color={a.severity === "high" ? colors.error : colors.brandSecondary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.activityTitle} numberOfLines={1}>{a.title}</Text>
+                  <Text style={styles.activitySub}>{t(`alert.type.${a.type}`)} · {a.country}</Text>
+                </View>
+                {!a.read ? <View style={styles.unreadDot} /> : null}
+              </Pressable>
+            ))}
+          </>
+        )}
 
         {d.activities.length > 0 && (
           <>
@@ -85,6 +107,9 @@ const useStyles = makeStyles((colors: ThemeColors) => ({
   cardValue: { fontFamily: fonts.display, fontSize: 26, color: colors.onSurface },
   cardLabel: { fontFamily: fonts.text, fontSize: 12, color: colors.muted, marginTop: 2 },
   sectionTitle: { fontFamily: fonts.display, fontSize: 18, color: colors.onSurface, marginTop: spacing.xl, marginBottom: spacing.md },
+  alertHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  seeAll: { fontFamily: fonts.textMedium, fontSize: 13, color: colors.brandPrimary },
+  unreadDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.brandPrimary },
   activity: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start", backgroundColor: colors.surfaceSecondary, borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.sm },
   activityTitle: { fontFamily: fonts.textBold, fontSize: 13, color: colors.onSurface },
   activitySub: { fontFamily: fonts.text, fontSize: 12, color: colors.muted, marginTop: 2 },

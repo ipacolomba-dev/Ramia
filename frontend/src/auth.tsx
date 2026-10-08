@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ActivityIndicator, View } from "react-native";
 
 import { api, TOKEN_KEY } from "@/src/api";
+import { registerForPush } from "@/src/push";
 import { useTheme } from "@/src/theme";
 import type { User } from "@/src/types";
 import { storage } from "@/src/utils/storage";
@@ -39,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const u = await api<User>("/auth/me", { token: t });
           setToken(t);
           setUser(u);
+          registerForPush(u.id);
         } catch {
           await storage.secureRemove(TOKEN_KEY);
         }
@@ -51,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await storage.secureSet(TOKEN_KEY, t);
     setToken(t);
     setUser(u);
+    registerForPush(u.id);
   }, []);
 
   const signOut = useCallback(async () => {

@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Text, View } from "react-native";
@@ -42,6 +42,12 @@ export default function TradeMarket() {
   const createPlan = useMutation({
     mutationFn: () => api<ExportPlan>("/trade/export-plan", { method: "POST", body: { product_id: productId, country, analysis_id: analysisId } }),
     onSuccess: (p) => router.push(`/trade/plan/${p.id}`),
+    onError: (e: Error) => toast.show(e.message, "error"),
+  });
+
+  const monitor = useMutation({
+    mutationFn: () => api("/regulatory/monitors", { method: "POST", body: { product_id: productId, country } }),
+    onSuccess: () => toast.show(t("alerts.monitorAdded")),
     onError: (e: Error) => toast.show(e.message, "error"),
   });
 
@@ -92,13 +98,22 @@ export default function TradeMarket() {
             )}
             <MarketAnalysisView data={result.data} />
             <Btn
+              title={t("alerts.monitor")}
+              icon="notifications-outline"
+              variant="outline"
+              testID="trade-monitor"
+              loading={monitor.isPending}
+              onPress={() => monitor.mutate()}
+              style={{ marginTop: spacing.lg }}
+            />
+            <Btn
               title={t("trade.createPlan")}
               icon="map"
               variant="secondary"
               testID="trade-create-plan"
               loading={createPlan.isPending}
               onPress={() => createPlan.mutate()}
-              style={{ marginTop: spacing.xl }}
+              style={{ marginTop: spacing.sm }}
             />
           </View>
         )}
