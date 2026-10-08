@@ -1,0 +1,35 @@
+{
+  "summary": "Durabilità Market Analysis (Trade Assistant) verificata end-to-end backend-only. PYTEST DURABILITÀ: eseguito `cd /app/backend && python -m pytest tests/test_trade_durability.py` → 7/7 PASSED in 1.77s (worker success→ready con attempts=1; failure→retry→error dopo MAX_ATTEMPTS, mai stuck pending; hanging→timeout→error; claim idempotente su doc terminale; recovery di pending orfano/stale→ready; give-up dopo max tentativi→error('max_attempts_exceeded'); doc fresh non toccato dalla sweep periodica). HTTP happy-path (1 sola chiamata AI): login produttore@demo.it → GET /api/products/mine → POST /api/trade/market-analysis {Germania} → 200 {id, status:'pending'} → polling 5s per ≤90s → stato finale 'ready' (non è rimasto in pending). Campi durabilità esposti: status, attempts (int ≥1), error (null quando ready); GET /api/trade/analyses elenca lo storico con 'status' per ogni voce. Regressione ruoli: consumatore riceve 403 su POST /api/trade/market-analysis; produttore riceve 404 su GET /api/trade/analyses/{id} inesistente. Totale backend: 10/10 PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_trade_durability.py",
+    "/app/backend/tests/test_trade_http_regression.py",
+    "/app/test_reports/pytest/pytest_iteration5.xml",
+    "/app/test_reports/pytest/pytest_iteration5_durability.xml",
+    "/app/test_reports/iteration_5.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Il worker _run_market_analysis usa un claim atomico find_one_and_update (pending→pending con $inc attempts e started_at) → idempotente su documenti terminali (test_claim_is_idempotent_on_terminal_doc verde).",
+    "WORKER_TIMEOUT applicato via asyncio.wait_for; superamento → status 'error' con messaggio contenente 'timeout' (verificato).",
+    "recover_pending_analyses distingue startup vs loop periodico: su loop tocca solo pending con updated_at più vecchio di STALE_SECONDS → doc 'fresh' non viene ri-accodato (test_fresh_pending_not_touched_by_periodic_sweep verde).",
+    "MAX_ATTEMPTS esaurito → status 'error' con error='max_attempts_exceeded' (verificato sia nel worker sia nello sweep).",
+    "Contratto frontend invariato: GET /api/trade/analyses/{id} espone sempre status/attempts/error; GET /api/trade/analyses include 'status' per voce — compatibile con la UI esistente.",
+    "Enforcement ruoli OK: 403 per consumatore su POST, 404 per id inesistente/altrui."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_trade_http_regression.py (nuovo — regression HTTP riusabile; usa EXPO_PUBLIC_BACKEND_URL via /app/frontend/.env)"
+  ],
+  "success_rate": {"backend": "100% (10/10: 7 durability + 3 HTTP regression)", "frontend": "N/A (backend only)"},
+  "seed_data_creation": "Nessun seed aggiunto. Durante l'happy-path è stato creato 1 documento trade_analyses legittimo per il produttore (status=ready, country=Germania) — comportamento atteso del test di regressione.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Il fix durabilità delle Market Analysis asincrone è completo e verificato. Suite durabilità deterministica (no crediti AI): `cd /app/backend && python -m pytest tests/test_trade_durability.py` → 7/7. Suite HTTP (consuma 1 credito AI): `python -m pytest tests/test_trade_http_regression.py -o addopts=''` → 3/3 in ~70s. Perplexity API key è vuota (atteso: live=false). Base URL letta da /app/frontend/.env (EXPO_PUBLIC_BACKEND_URL). Il modulo HTTP usa `-o addopts=''` per evitare xdist e preservare l'ordine delle fixture di modulo.",
+  "rca_of_issue": "N/A — nessun bug trovato. Il fix di durabilità (claim atomico con $inc attempts, WORKER_TIMEOUT via asyncio.wait_for, _delayed_retry in-process con RETRY_DELAY, recovery sweep startup+loop ogni 60s via lifespan start_recovery, give-up a MAX_ATTEMPTS con error='max_attempts_exceeded') è coerente con quanto descritto nel contesto e tutti i 7 scenari di durabilità più i 3 regressione HTTP passano."
+}

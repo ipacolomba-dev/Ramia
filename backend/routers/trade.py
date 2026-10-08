@@ -1,6 +1,8 @@
+import asyncio
 import json
 import logging
 import uuid
+from datetime import timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
@@ -16,6 +18,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/trade", tags=["trade"])
 
 COMPLIANCE_FIELDS = ["ingredients", "allergens", "shelf_life", "net_weight", "packaging", "hs_code"]
+
+# --- Durability of async market analyses ---
+# A single run can't hang forever; stale pending docs are recovered/retried; failures become "error".
+WORKER_TIMEOUT = 150        # max seconds for one analysis run before it's treated as failed
+MAX_ATTEMPTS = 3            # total attempts before giving up (-> status "error")
+STALE_SECONDS = 210         # a pending doc untouched for this long is considered orphaned/stuck
+SWEEP_INTERVAL = 60         # periodic recovery sweep cadence
+RETRY_DELAY = 5             # in-process delay before a controlled retry
 
 DISCLAIMER = (
     "Le informazioni fornite dall'AI hanno finalità informative e operative e non sostituiscono "
@@ -69,10 +79,10 @@ def _product_ctx(p: dict, extra: dict | None) -> tuple[dict, list[str]]:
     return ctx, missing
 
 
-async def _producer_ctx(user: dict, product: dict) -> dict:
+async def _producer_ctx(product: dict) -> dict:
     pid = product.get("producer_id")
-    prod = await db.users.find_one({"_id": pid}) if pid else user
-    prod = prod or user
+    prod = (await db.users.find_one({"_id": pid})) if pid else None
+    prod = prod or product
     return {
         "company_name": prod.get("company_name") or prod.get("name"),
         "country": "Italia",
@@ -126,19 +136,26 @@ async def market_analysis(body: TradeMarketIn, background: BackgroundTasks, user
         "status": "pending",
         "data": {},
         "missing_info": missing,
+        "extra": dict(body.extra or {}),
+        "attempts": 0,
+        "error": None,
         "live": False,
         "created_at": now,
+        "updated_at": now,
+        "started_at": None,
     }
     await db.trade_analyses.insert_one(doc)
-    background.add_task(_run_market_analysis, doc_id, p, dict(body.extra or {}), body.country, await _producer_ctx(user, p))
+    background.add_task(_run_market_analysis, doc_id)
     return {"id": doc_id, "status": "pending", "country": body.country,
             "product_name": p.get("name"), "version": version, "missing_info": missing}
 
 
-async def _run_market_analysis(doc_id: str, p: dict, extra: dict, country: str, prod_ctx: dict):
+async def _compute_market(product: dict, extra: dict, country: str) -> tuple[dict, bool]:
+    """Run the LLM analysis. Returns (data_with_sources, live). Raises on failure/empty."""
     from emergentintegrations.llm.chat import UserMessage
 
-    pctx, _ = _product_ctx(p, extra)
+    pctx, _ = _product_ctx(product, extra)
+    prod_ctx = await _producer_ctx(product)
     question = (
         f"Esportazione di {pctx.get('category')} ({pctx.get('name')}) dall'Italia verso {country}: "
         f"requisiti doganali, codice HS, dazi, requisiti sanitari e di sicurezza alimentare, requisiti di "
@@ -159,17 +176,11 @@ async def _run_market_analysis(doc_id: str, p: dict, extra: dict, country: str, 
         parts.append(f"CONTESTI WEB AGGIORNATI (con fonti):\n{web_context}")
     prompt = "\n\n".join(parts)
 
-    try:
-        chat = _llm_chat(f"trade-market-{doc_id}", MARKET_SYSTEM)
-        raw = await chat.send_message(UserMessage(text=prompt))
-        data = _parse_json(raw)
-    except Exception as e:
-        logger.error("market analysis worker error: %s", e)
-        data = {}
-
+    chat = _llm_chat(f"trade-market-{uuid.uuid4()}", MARKET_SYSTEM)
+    raw = await chat.send_message(UserMessage(text=prompt))
+    data = _parse_json(raw)
     if not data:
-        await db.trade_analyses.update_one({"_id": doc_id}, {"$set": {"status": "error"}})
-        return
+        raise ValueError("empty_llm_response")
 
     sources = []
     if live and citations:
@@ -186,9 +197,113 @@ async def _run_market_analysis(doc_id: str, p: dict, extra: dict, country: str, 
             })
     data["sources"] = sources
     data["reliability"] = _reliability_from_sources(live)
-    await db.trade_analyses.update_one(
-        {"_id": doc_id}, {"$set": {"status": "ready", "data": data, "live": live}}
+    return data, live
+
+
+async def _run_market_analysis(doc_id: str):
+    """Durable worker: claims the pending doc, runs with a hard timeout, and either completes
+    (ready), schedules a controlled retry, or marks error when attempts are exhausted. Safe to
+    invoke multiple times (idempotent claim); survives restarts via the recovery sweep."""
+    now = now_utc()
+    # Atomic claim: only proceed if still pending; bump attempts and heartbeat.
+    claim = await db.trade_analyses.update_one(
+        {"_id": doc_id, "status": "pending"},
+        {"$inc": {"attempts": 1}, "$set": {"started_at": now, "updated_at": now}},
     )
+    if claim.matched_count == 0:
+        return  # already terminal (ready/error) or removed
+
+    doc = await db.trade_analyses.find_one({"_id": doc_id})
+    if not doc:
+        return
+    attempts = doc.get("attempts", 1)
+
+    product = await db.products.find_one({"_id": doc["product_id"], "deleted_at": None})
+    if not product:
+        await db.trade_analyses.update_one(
+            {"_id": doc_id}, {"$set": {"status": "error", "error": "product_not_found", "updated_at": now_utc()}}
+        )
+        return
+
+    try:
+        data, live = await asyncio.wait_for(
+            _compute_market(product, doc.get("extra") or {}, doc["country"]), timeout=WORKER_TIMEOUT
+        )
+        await db.trade_analyses.update_one(
+            {"_id": doc_id},
+            {"$set": {"status": "ready", "data": data, "live": live, "error": None, "updated_at": now_utc()}},
+        )
+        return
+    except Exception as e:
+        reason = "timeout" if isinstance(e, asyncio.TimeoutError) else str(e)[:300]
+        logger.warning("market analysis attempt %s failed for %s: %s", attempts, doc_id, reason)
+        if attempts >= MAX_ATTEMPTS:
+            await db.trade_analyses.update_one(
+                {"_id": doc_id},
+                {"$set": {"status": "error", "error": reason, "updated_at": now_utc()}},
+            )
+            return
+        # Controlled retry: keep status pending, refresh heartbeat, re-enqueue in-process.
+        await db.trade_analyses.update_one(
+            {"_id": doc_id}, {"$set": {"updated_at": now_utc(), "error": reason}}
+        )
+        asyncio.create_task(_delayed_retry(doc_id))
+
+
+async def _delayed_retry(doc_id: str):
+    try:
+        await asyncio.sleep(RETRY_DELAY)
+        await _run_market_analysis(doc_id)
+    except asyncio.CancelledError:  # pragma: no cover
+        raise
+    except Exception as e:  # pragma: no cover
+        logger.error("delayed retry error for %s: %s", doc_id, e)
+
+
+async def recover_pending_analyses(startup: bool = False) -> int:
+    """Durable recovery. On startup every pending doc is orphaned (its worker died with the
+    process) and is re-enqueued. On periodic sweeps only docs untouched for STALE_SECONDS are
+    recovered (a live worker refreshes updated_at). Docs past MAX_ATTEMPTS become 'error'."""
+    now = now_utc()
+    query: dict = {"status": "pending"}
+    if not startup:
+        query["updated_at"] = {"$lt": now - timedelta(seconds=STALE_SECONDS)}
+    recovered = 0
+    for doc in await db.trade_analyses.find(query).to_list(500):
+        if doc.get("attempts", 0) >= MAX_ATTEMPTS:
+            await db.trade_analyses.update_one(
+                {"_id": doc["_id"], "status": "pending"},
+                {"$set": {"status": "error", "error": "max_attempts_exceeded", "updated_at": now_utc()}},
+            )
+            continue
+        recovered += 1
+        asyncio.create_task(_run_market_analysis(doc["_id"]))
+    if recovered:
+        logger.info("recover_pending_analyses: re-enqueued %s analysis(es) (startup=%s)", recovered, startup)
+    return recovered
+
+
+_sweeper_task: asyncio.Task | None = None
+
+
+async def _recovery_loop():
+    while True:
+        await asyncio.sleep(SWEEP_INTERVAL)
+        try:
+            await recover_pending_analyses(startup=False)
+        except Exception as e:  # pragma: no cover
+            logger.error("recovery loop error: %s", e)
+
+
+async def start_recovery():
+    """Run a startup recovery pass and launch the periodic sweeper. Called from app lifespan."""
+    global _sweeper_task
+    try:
+        await recover_pending_analyses(startup=True)
+    except Exception as e:  # pragma: no cover
+        logger.error("startup recovery error: %s", e)
+    if _sweeper_task is None or _sweeper_task.done():
+        _sweeper_task = asyncio.create_task(_recovery_loop())
 
 
 @router.get("/analyses")

@@ -22,6 +22,7 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Storage init rimandato: %s", exc)
     await seed()
+    await trade.start_recovery()
     yield
     client.close()
 
