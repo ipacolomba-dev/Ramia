@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -25,7 +26,8 @@ ADVISOR_SYSTEM = (
     "tendenze di domanda dei prodotti. Concludi SEMPRE con un breve avviso: sei una consulenza "
     "informativa e di orientamento, non sostituisci un consulente fiscale/legale né le autorità "
     "competenti; le approvazioni finali restano dell'ente e dei laboratori etichette. "
-    "Se ti vengono forniti CONTESTI WEB con fonti, usali per riflettere regolamenti e condizioni recenti."
+    "Se ti vengono forniti CONTESTI WEB con fonti, usali per riflettere regolamenti e condizioni recenti. "
+    "Mantieni la risposta concisa e operativa (indicativamente max ~250 parole): vai al punto, evita ripetizioni."
 )
 
 
@@ -95,7 +97,10 @@ async def advisor_chat(body: AdvisorChatIn, user: dict = Depends(require_roles("
 
     chat = _llm_chat(session_key, ADVISOR_SYSTEM)
     try:
-        reply = await chat.send_message(UserMessage(text=prompt))
+        reply = await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)), timeout=85)
+    except asyncio.TimeoutError:
+        logger.warning("Advisor LLM timeout for user %s", uid)
+        raise HTTPException(status_code=504, detail="La risposta sta richiedendo troppo tempo. Riprova con una domanda più breve.")
     except Exception as e:
         logger.error("Advisor LLM error: %s", e)
         raise HTTPException(status_code=502, detail="Assistente non disponibile, riprova")
