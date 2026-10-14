@@ -1,0 +1,40 @@
+{
+  "summary": "Phase 1 auth/registration overhaul backend-only test suite: 17/17 PASSED in ~5.6s against EXPO_PUBLIC_BACKEND_URL. Coperti tutti i casi del review request: (1) Backward compat: admin@saporidisicilia.it e produttore@demo.it continuano a loggare correttamente e /auth/me ritorna email_verified=true per entrambi (legacy fallback a True quando il campo manca nel documento). (2) Consents validation: POST /api/auth/register senza consents, con terms=false, o con privacy=false restituisce 422 come atteso. (3) Consumer registration (role=consumer) con consents{terms:true,privacy:true,marketing:false} => 200, ritorna access_token + user con email_verified=false, marketing_consent=false, approved=true, e login successivo con le nuove credenziali funziona. (4) Producer registration (role=producer) con profile annidato completo (company{legal_name,brand_name,vat_id,tax_code,country_incorp:'Italia',...}, legal_address, production_same_as_legal, contact, billing{same_as_legal,sdi_code,pec}, commercial{product_categories:['olio'],activity}, certifications:['BIO','DOP']) => 200: company_name derivato da brand_name ('Rossi Oli'), fallback a legal_name quando brand_name assente, certifications persistite, email_verified=false, approved=true. (5) Role approval: business/logistics/collaborator ritornano approved=false; consumer/producer ritornano approved=true. (6) Marketing consent indipendente: marketing:true -> marketing_consent=true; marketing:false -> false; mai blocca la registrazione. (7) Server-side profile validation: company.vat_id > 60 chars e commercial.product_categories con tipo errato (string invece di list) restituiscono 422, mai 500. (8) Duplicate email: seconda registrazione con stessa email (sia nuova sia legacy produttore@demo.it) ritorna 409.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_registration_phase1.py",
+    "/app/test_reports/pytest/pytest_iteration9.xml",
+    "/app/test_reports/iteration_9.json"
+  ],
+  "action_items": [
+    "Nessuna azione richiesta: Phase 1 registration overhaul backend e' corretto e completamente retro-compatibile. Procedere con Phase 2 (upload documenti, altre role-specific forms strutturate) quando pronto."
+  ],
+  "critical_code_review_comments": [
+    "routers/auth.py:_build_consents stampa correttamente le versioni TERMS_VERSION/PRIVACY_VERSION='2026-06' su ciascun consenso con timestamp UTC; il marketing accetta bool(c.marketing) senza bloccare la registrazione se false.",
+    "routers/auth.py:_normalize_profile usa ProducerProfileIn per validare lato server il profilo producer e deriva company_name (brand_name || legal_name), region, certifications, website, phone, city per retro-compatibilita' con il resto del sistema; errori di validazione sollevano 422 pulito con detail parziale (primo errore).",
+    "routers/auth.py:_register_user imposta email_verified=False per i nuovi utenti; AUTO_APPROVED_ROLES=('consumer','producer','admin') garantisce che business/logistics/collaborator restino approved=False in attesa di review admin.",
+    "routers/auth.py:public_user applica fallback email_verified=True quando il campo manca (legacy users predate verification), coerente con il requisito 'non rompere login esistenti'.",
+    "models.py:ProducerProfileIn ha field length limits (vat_id max_length=60, legal_name max_length=200, product_categories: List[str]) che vengono correttamente enforced e trasformati in 422 da _normalize_profile."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_registration_phase1.py (nuovo — suite HTTP end-to-end per Phase 1 registration/auth overhaul)"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17)",
+    "frontend": "N/A (backend only - skipped per review request)"
+  },
+  "seed_data_creation": "La suite crea utenti con email prefisso 'TEST_<tag>_<uuid>@demo.it' usando uuid random a ogni run, per evitare collisioni 409 su rerun. Nessuna cleanup esplicita (gli utenti test rimangono in db.users con prefisso TEST_ identificabile). Nessuna modifica a utenti seed di produzione.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Suite riutilizzabile: cd /app/backend && python -m pytest tests/test_registration_phase1.py -v -o addopts=''. Totalmente HTTP-only verso EXPO_PUBLIC_BACKEND_URL. Ogni rerun usa email uuid-randomizzate quindi non c'e' conflitto con precedenti run. Legacy users (admin@saporidisicilia.it, produttore@demo.it) devono continuare a esistere nel DB per i test di backward compat e duplicate-against-legacy. Password per TUTTI gli account registrati dal test = 'Str0ngPass!'. Nessun test touch frontend/UI.",
+  "rca_of_issue": "N/A — nessun bug trovato. Phase 1 backend implementato correttamente."
+}

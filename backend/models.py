@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Annotated, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 
 from bson import ObjectId
 from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field
@@ -42,6 +42,73 @@ class BaseDocument(BaseModel):
 
 # ----------------------------- Auth -----------------------------
 
+class ConsentIn(BaseModel):
+    terms: bool = False
+    privacy: bool = False
+    marketing: bool = False
+
+
+class RegAddressIn(BaseModel):
+    street: Optional[str] = Field(None, max_length=200)
+    zip: Optional[str] = Field(None, max_length=20)
+    city: Optional[str] = Field(None, max_length=120)
+    region: Optional[str] = Field(None, max_length=120)
+    country: Optional[str] = Field(None, max_length=60)
+
+
+class RegCompanyIn(BaseModel):
+    legal_name: Optional[str] = Field(None, max_length=200)
+    legal_form: Optional[str] = Field(None, max_length=120)
+    brand_name: Optional[str] = Field(None, max_length=200)
+    country_incorp: Optional[str] = Field(None, max_length=60)
+    vat_id: Optional[str] = Field(None, max_length=60)
+    tax_code: Optional[str] = Field(None, max_length=60)
+    registry_no: Optional[str] = Field(None, max_length=100)
+    website: Optional[str] = Field(None, max_length=200)
+    email: Optional[str] = Field(None, max_length=160)
+    phone: Optional[str] = Field(None, max_length=60)
+
+
+class RegContactIn(BaseModel):
+    first_name: Optional[str] = Field(None, max_length=120)
+    last_name: Optional[str] = Field(None, max_length=120)
+    role_title: Optional[str] = Field(None, max_length=120)
+    email: Optional[str] = Field(None, max_length=160)
+    phone: Optional[str] = Field(None, max_length=60)
+
+
+class RegBillingIn(BaseModel):
+    billing_name: Optional[str] = Field(None, max_length=200)
+    vat_id: Optional[str] = Field(None, max_length=60)
+    address: Optional[RegAddressIn] = None
+    sdi_code: Optional[str] = Field(None, max_length=20)
+    pec: Optional[str] = Field(None, max_length=160)
+    same_as_legal: bool = False
+
+
+class RegCommercialIn(BaseModel):
+    company_type: Optional[str] = Field(None, max_length=120)
+    product_categories: List[str] = Field(default_factory=list)
+    activity: Optional[str] = Field(None, max_length=120)
+    domestic_markets: Optional[str] = Field(None, max_length=300)
+    intl_markets: Optional[str] = Field(None, max_length=300)
+    min_quantities: Optional[str] = Field(None, max_length=200)
+    packaging: Optional[str] = Field(None, max_length=200)
+
+
+class ProducerProfileIn(BaseModel):
+    company: RegCompanyIn = Field(default_factory=RegCompanyIn)
+    legal_address: RegAddressIn = Field(default_factory=RegAddressIn)
+    production_address: Optional[RegAddressIn] = None
+    production_same_as_legal: bool = False
+    other_locations: List[RegAddressIn] = Field(default_factory=list)
+    contact: RegContactIn = Field(default_factory=RegContactIn)
+    billing: RegBillingIn = Field(default_factory=RegBillingIn)
+    commercial: RegCommercialIn = Field(default_factory=RegCommercialIn)
+    certifications: List[str] = Field(default_factory=list)
+    documents_note: Optional[str] = Field(None, max_length=1000)
+
+
 class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
@@ -53,6 +120,8 @@ class RegisterIn(BaseModel):
     business_type: Optional[str] = None
     specialty: Optional[str] = None
     fleet_info: Optional[str] = None
+    profile: Optional[dict] = None
+    consents: Optional[ConsentIn] = None
 
 
 class LoginIn(BaseModel):

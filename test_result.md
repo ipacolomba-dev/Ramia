@@ -129,6 +129,34 @@ backend:
         message: "market-analysis worker now fetches kb_requirements_for(country,category,hs_code), injects KB context into LLM prompt, attaches data.kb (requirements+sources+conflicts+has_official_source) and creates a RegulatorySnapshot (snapshot_id saved on analysis). compliance endpoint also grounds on KB and returns data.kb. Async durability flow unchanged."
 
 frontend:
+  - task: "Role-based registration (5 categories) with structured profile + legal consents + email_verified flag"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/routers/auth.py"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        message: "Fase 1. /auth/register extended: requires consents.terms & consents.privacy (422 otherwise), stores consents with version(2026-06)+UTC timestamp, marketing_consent separate/optional, email_verified=False for new users. Producer role: body.profile validated via ProducerProfileIn (company/legal_address/production/contact/billing/commercial/certifications/documents_note); derives backward-compat company_name/region/certifications/website/phone/city. Other roles store raw profile. public_user now returns email_verified (defaults True for legacy accounts) and marketing_consent. Login unchanged (bcrypt/JWT). Approval unchanged (producer/consumer auto; business/logistics/collaborator wait admin). Smoke-verified: legacy login ok (email_verified True), register w/o consents 422, producer full profile creates user with derived company_name & certs, email_verified False."
+    file_list:
+      - "/app/backend/routers/auth.py"
+      - "/app/backend/models.py"
+  - task: "Registration UI: category landing + producer wizard + simple forms + consents + legal pages"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/auth/register-producer.tsx"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        message: "register.tsx is now the 5-category landing (producer->/auth/register-producer, others->/auth/register-simple?role=). Producer 7-step wizard (A-G) with progress bar, country-aware fiscal fields (IT shows Codice Fiscale/SDI/PEC), same-as-legal toggles for production & billing, category/activity/cert chips, documents note (file upload deferred to Fase 4), final editable summary + credentials + consents. register-simple covers consumer/business/logistics/collaborator with consents. Shared ConsentsBlock (terms+privacy required, marketing optional) linking to /legal/terms and /legal/privacy. Smoke-verified landing + producer step A render."
+    file_list:
+      - "/app/frontend/app/auth/register.tsx"
+      - "/app/frontend/app/auth/register-producer.tsx"
+      - "/app/frontend/app/auth/register-simple.tsx"
+      - "/app/frontend/src/components/consents.tsx"
+      - "/app/frontend/app/legal/terms.tsx"
+      - "/app/frontend/app/legal/privacy.tsx"
   - task: "Richer in-app notifications (unread bell, alert filters, mark-all-read, dashboard recent alerts)"
     implemented: true
     working: "NA"
@@ -175,7 +203,8 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Richer in-app notifications (unread bell, alert filters, mark-all-read, dashboard recent alerts)"
+    - "Role-based registration (5 categories) with structured profile + legal consents + email_verified flag"
+    - "Registration UI: category landing + producer wizard + simple forms + consents + legal pages"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"

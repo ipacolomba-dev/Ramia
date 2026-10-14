@@ -20,6 +20,8 @@ export interface User {
   featured_until?: string | null;
   created_at?: string | null;
   approved?: boolean;
+  email_verified?: boolean;
+  marketing_consent?: boolean;
   bio?: string | null;
   bio_en?: string | null;
   website?: string | null;

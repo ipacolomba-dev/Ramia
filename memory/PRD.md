@@ -25,6 +25,15 @@ Consumatore, Produttore, Business (grossista/distributore/GDO), Collaboratore et
 - i18n IT/EN, brand '’Ra mia', tema bordeaux/oro.
 
 ## Implementato (2026-06)
+### Registrazione multi-ruolo — Fase 1 (2026-06, questa iterazione)
+- Schermata iniziale professionale `/auth/register`: titolo "Entra nel marketplace agroalimentare siciliano" + sottotitolo + 5 schede (Produttore, Compratore, Cliente privato, Trasporto/Logistica, Laboratorio/Professionista) con icona/titolo/descrizione + "Hai già un account? Accedi".
+- **Modulo Produttore multi-step (7 passi A–G)** `/auth/register-producer`: Dati aziendali, Sedi, Referente, Fatturazione, Profilo commerciale, Documentazione, Credenziali+consensi, con barra di avanzamento, campi fiscali **adattati al Paese** (Italia → Codice Fiscale/SDI/PEC), toggle "coincide con sede legale" (produttiva e fatturazione), chip categorie/attività/certificazioni, riepilogo finale.
+- Moduli semplici per gli altri 4 ruoli `/auth/register-simple?role=` (consumatore senza dati aziendali; business/logistica/laboratorio con approvazione admin).
+- Consensi legali condivisi (`src/components/consents.tsx`): condizioni + privacy obbligatori, marketing separato e facoltativo; pagine legali `/legal/terms` e `/legal/privacy`.
+- Backend `/auth/register` esteso (non distruttivo): richiede consensi (422 altrimenti), salva consensi con versione+timestamp UTC, `email_verified=False` (soft; banner rimandato a Fase 3), profilo Produttore validato server-side via `ProducerProfileIn`, campi legacy derivati per retrocompatibilità. `public_user` espone `email_verified` (default True per utenti legacy) e `marketing_consent`. Login/approvazione invariati.
+- NON in Fase 1 (come concordato): verifica email attiva + reset password + anti brute-force (Fase 3), upload documenti su Object Storage (Fase 4), moduli completi degli altri 4 ruoli (Fase 2).
+- Test: backend 17/17 pass (`tests/test_registration_phase1.py`); frontend E2E registrazione consumer + rendering landing/wizard verificati.
+
 ### Notifiche in-app più ricche (2026-06, questa iterazione)
 - Campanella con badge "non letti" (refetch 30s) nell'hub Trade e nella dashboard → apre gli Avvisi.
 - Filtri avvisi per tipo e gravità + "Segna tutti come letti" (`GET /regulatory/alerts?type=&severity=`, `POST /regulatory/alerts/read-all`).
