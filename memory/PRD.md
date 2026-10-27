@@ -96,3 +96,20 @@ Consumatore, Produttore, Business (grossista/distributore/GDO), Collaboratore et
 - Datetime timezone-aware; safe-area via react-native-safe-area-context.
 - Ogni nuova stringa UI aggiunta in `src/i18n.tsx` (IT + EN).
 - `PERPLEXITY_API_KEY` vuota → advisor `live=false` (fallback conoscenza esperta).
+
+## Ristrutturazione per aree e ruoli (Ott 2026)
+- Nuova struttura route: (public) [/, /chi-siamo, /come-funziona, /legal/*], (auth) [/login, /register, /register-producer, /register-buyer, /register-simple], (app) protetto con guard per ruolo:
+  - /producer/* (dashboard, catalogo + import/form/[id], offerte + richieste compratori, lotti, etichette, visibilita, ordini ricevuti, incassi, export (RA MIA Trade), spedizioni, azienda, profilo)
+  - /buyer/* (mercato, ricerca-ai, trattative + alerts + history, richieste RFQ, ordini, checkout, analisi acquisti, piani, spedizioni, azienda, profilo) — consumer + business
+  - /logistics/* (spedizioni, preventivi, tracciamento, azienda, profilo)
+  - /compliance/* (servizi, documenti privati su Object Storage, requisiti-mercato) — collaborator + produttori
+  - /admin/* (dashboard, utenti + verifica, regolatorio, moderazione, categorie, incassi) — admin può vedere tutte le aree
+  - /shared/product/[id], /shared/producer/[id], /shared/b2b/[id]
+- Backend nuovo `routers/platform.py`: lots, orders/received, producer/earnings, rfq, buyer/plans (simulato), buyer/analytics, logistics/quotes/mine, tracking, compliance/documents (privati), admin/users + sospensione, moderazione offerte, categories (seed).
+- Vecchi indirizzi rimossi senza rimandi (scelta utente).
+- Iterazione 11: back con cronologia nelle tab, scelta del trasportatore da parte del cliente (select-quote atomico; tracciamento solo dal trasportatore scelto; niente preventivi dopo la scelta o doppi), trattative bloccate per i consumatori, limite di 3 richieste nel piano Base, banner "in attesa di approvazione" nel mercato. Test backend: 31/31.
+### Backlog
+- Fase 3 registrazione: verifica email (banner), reset password, protezione anti brute-force.
+- Moduli dettagliati di registrazione per logistica e laboratorio (il compratore è fatto).
+- Pagamenti reali (Stripe) al posto di quelli simulati: checkout, visibilità, piani compratore.
+- Notifiche push: google-services.json al momento del deploy.

@@ -338,7 +338,7 @@ export function ScreenHeader({
   right,
 }: {
   title: string;
-  onBack: () => void;
+  onBack?: () => void;
   right?: React.ReactNode;
 }) {
   const { colors } = useTheme();
@@ -346,9 +346,13 @@ export function ScreenHeader({
   const styles = useStyles();
   return (
     <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]} testID="screen-header">
-      <Pressable onPress={onBack} style={styles.backBtn} hitSlop={12} testID="header-back-button" accessibilityRole="button">
-        <Ionicons name="chevron-back" size={24} color={colors.onSurface} />
-      </Pressable>
+      {onBack ? (
+        <Pressable onPress={onBack} style={styles.backBtn} hitSlop={12} testID="header-back-button" accessibilityRole="button">
+          <Ionicons name="chevron-back" size={24} color={colors.onSurface} />
+        </Pressable>
+      ) : (
+        <View style={styles.backBtn} />
+      )}
       <Text style={styles.headerTitle} numberOfLines={1}>
         {title}
       </Text>

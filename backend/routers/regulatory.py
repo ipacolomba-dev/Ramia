@@ -250,7 +250,7 @@ async def create_alert(alert_type: str, country: str, category: str | None, titl
             await send_push(
                 recipients=producers,
                 data={"title": f"Avviso normativo · {country}", "message": title,
-                      "action_url": "/trade/alerts"},
+                      "action_url": "/producer/export/alerts"},
                 idempotency_key=f"regalert-{alert_id}",
             )
         except Exception as e:  # push must never block alert creation

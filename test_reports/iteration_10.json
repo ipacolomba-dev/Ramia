@@ -1,0 +1,45 @@
+{
+  "summary": "Tested the route-group refactor end to end. Backend: added the new suite /app/backend/tests/test_platform_areas.py with 16 tests, and all 16 pass (100%). It covers lots CRUD with the 409 on a duplicate lot code, received orders, earnings, the RFQ lifecycle (buyer sees all responses, a producer sees only their own, closing works, a closed request rejects responses with 422, a pending business gets 403), buyer plans and analytics, logistics quotes and tracking, compliance documents (multipart upload, ?token download for owner and admin, 404 for other users, delete), admin users with role/q filters, suspending a user (login and existing token both get 403; the account was reactivated afterwards), moderation, categories (409 on duplicate, 422 on a bad slug, 422 when deleting a category in use) and business registration with a structured profile. Frontend (375x667): checked role guards and landing screens for all 6 roles, plus all requested flows for producer, buyer, logistics, compliance, admin and public screens, and the 4-step register-buyer wizard. Almost everything works. Main bug: Back from screens opened from a different tab goes to the area's first tab, not the previous screen.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/logistics/requests/{id}/tracking", "issue": "Any logistics company that sent a quote can post tracking, even on an 'open' shipment where no quote was accepted. Each post also sets carrier_id to that company, so a competitor who quoted can take over the shipment. logistics.py has no carrier-selection step. Only the selected carrier should be allowed, or the quote must be accepted first."},
+      {"endpoint": "GET /api/admin/users?q=", "issue": "The q parameter is passed to Mongo $regex without re.escape (regex injection / ReDoS risk, admin only)."},
+      {"endpoint": "POST /api/rfq/{id}/responses", "issue": "Uses require_roles('producer') rather than require_approved_roles, so a producer not yet approved can reply to buyer requests."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AreaTabs back navigation", "issue": "Screens hidden from the tab bar (lotti/form, incassi, analisi, piani, etc.) are opened from another tab with router.push. On those screens, router.back() (header-back-button, and also the lot form's back after saving) goes to the area's FIRST tab instead of the previous screen. Reproduced: catalogo/[id] -> catalog-new-lot -> save or back lands on /producer/dashboard, not the product detail. Same for profilo -> menu-producer-earnings -> back (lands on /producer/dashboard) and buyer profilo -> menu-buyer-analytics -> back (lands on /buyer/mercato). Fix: add backBehavior=\"history\" to <Tabs> in src/components/AreaTabs.tsx:30, or move lotti/form into the catalogo stack.", "testID": "header-back-button, lot-submit", "priority": "MEDIUM"},
+      {"component": "Consumer role guard on /buyer/trattative", "issue": "The trattative tab is hidden for consumers (tab-trattative not shown), but a consumer can still open /buyer/trattative by URL. The screen shows B2B offers and the 'Le mie richieste di fornitura' link, while the API returns 403 for /rfq. The screen needs a role check that redirects non-business users.", "testID": "buyer-deals", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Producer export hub", "issues": ["trade-action-analyze sends the producer to /compliance/requisiti-mercato, so the bottom tabs switch to the compliance set (Servizi/Documenti/Profilo) and there is no header back button. The producer is effectively pulled out of their own area."]},
+      {"screen": "Buyer mercato after business registration", "issues": ["A newly registered (pending) business lands on /buyer/mercato with no pending-approval banner. The notice is shown only in Profilo and Richieste."]},
+      {"screen": "Buyer richieste list", "issues": ["Wrong plural: '1 risposte' should be '1 risposta'."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_platform_areas.py", "/app/test_reports/pytest/pytest_platform.xml"],
+  "action_items": [
+    "Add backBehavior=\"history\" to <Tabs> in src/components/AreaTabs.tsx so Back from hidden screens returns to the previous screen (lot form -> product detail, incassi/analisi/piani -> profilo).",
+    "Restrict POST /api/logistics/requests/{id}/tracking to the selected/accepted carrier, and add a quote-acceptance step. Today any company that quoted can overwrite carrier_id.",
+    "Guard /buyer/trattative (and its children richieste, history, alerts) so they are business-only; redirect consumers to /buyer/mercato.",
+    "Escape the q parameter with re.escape in GET /api/admin/users.",
+    "Consider require_approved_roles('producer') for RFQ responses.",
+    "Optional: keep producers inside their own area for 'Analizza il mio prodotto' (or add a back button), show a pending-approval banner on mercato, fix the '1 risposte' plural."
+  ],
+  "critical_code_review_comments": [
+    "platform.py add_tracking: '$set carrier_id: uid' on every tracking post lets the last company to post become the carrier.",
+    "platform.py list_rfq: producers see every open RFQ, but responses are filtered to their own (correct). The buyer plan limit 'Fino a 3 richieste aperte' (free plan) is not enforced in create_rfq.",
+    "platform.py admin_users: unescaped $regex built from user input."
+  ],
+  "updated_files": ["/app/backend/tests/test_platform_areas.py (new)"],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "~93% (all requested flows work; back-navigation bug and a missing consumer guard)"},
+  "seed_data_creation": "None kept. Cleaned up TEST_ RFQs, TEST_ lots, TEST_ document, test_ category and TEST buyer users. Reset business@demo.it buyer_plan to free. Removed TEST_ tracking events from shipment 3075c7d1 and unset the carrier_id/tracking_status they had set. Consumer account was suspended and then reactivated (no demo account is suspended).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run pytest with EXPO_PUBLIC_BACKEND_URL exported (conftest provides the tokens fixture for all demo roles). The logistics tracking test changes a demo shipment's tracking, so clean up afterwards. The real back-button testID is header-back-button. The product detail route is /shared/product/[id].",
+  "rca_of_issue": "Back navigation: expo-router Tabs default to backBehavior 'firstRoute'. Hidden routes (href:null) such as lotti, incassi, analisi and piani are their own tab routes, so router.back() from the first screen of their stack falls back to the first tab (dashboard/mercato). Mitigation: backBehavior='history' on Tabs in AreaTabs."
+}

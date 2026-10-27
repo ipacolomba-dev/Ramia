@@ -63,6 +63,8 @@ async def user_from_token(raw: Optional[str]) -> dict:
         raise unauth
     if not user:
         raise unauth
+    if user.get("suspended"):
+        raise HTTPException(status_code=403, detail="Account sospeso")
     return user
 
 

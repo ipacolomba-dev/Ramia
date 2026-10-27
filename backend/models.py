@@ -109,6 +109,23 @@ class ProducerProfileIn(BaseModel):
     documents_note: Optional[str] = Field(None, max_length=1000)
 
 
+class BuyerPrefsIn(BaseModel):
+    buyer_type: Optional[str] = Field(None, max_length=120)
+    product_categories: List[str] = Field(default_factory=list)
+    annual_volume: Optional[str] = Field(None, max_length=120)
+    destination_markets: Optional[str] = Field(None, max_length=300)
+    required_certifications: List[str] = Field(default_factory=list)
+    notes: Optional[str] = Field(None, max_length=1000)
+
+
+class BuyerProfileIn(BaseModel):
+    company: RegCompanyIn = Field(default_factory=RegCompanyIn)
+    legal_address: RegAddressIn = Field(default_factory=RegAddressIn)
+    contact: RegContactIn = Field(default_factory=RegContactIn)
+    billing: RegBillingIn = Field(default_factory=RegBillingIn)
+    buyer: BuyerPrefsIn = Field(default_factory=BuyerPrefsIn)
+
+
 class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)

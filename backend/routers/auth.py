@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import EmailStr, ValidationError
 
 from db import db
-from models import LocaleIn, LoginIn, ProducerProfileIn, RegisterIn, now_utc
+from models import BuyerProfileIn, LocaleIn, LoginIn, ProducerProfileIn, RegisterIn, now_utc
 from security import current_user, hash_password, make_token, verify_password, DUMMY_HASH
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -70,6 +70,20 @@ def _normalize_profile(body: RegisterIn) -> tuple[dict, dict]:
             derived["phone"] = p.company.phone
         if p.legal_address.city:
             derived["city"] = p.legal_address.city
+    elif body.role == "business" and body.profile:
+        try:
+            b = BuyerProfileIn(**body.profile)
+        except ValidationError as e:
+            raise HTTPException(status_code=422, detail=f"Dati profilo non validi: {e.errors()[:1]}")
+        profile = b.model_dump(exclude_none=True)
+        derived["company_name"] = b.company.brand_name or b.company.legal_name or body.company_name
+        derived["region"] = b.legal_address.region or b.legal_address.country or body.region
+        if b.company.website:
+            derived["website"] = b.company.website
+        if b.company.phone:
+            derived["phone"] = b.company.phone
+        if b.legal_address.city:
+            derived["city"] = b.legal_address.city
     elif body.profile:
         # Other roles (Fase 2): store the raw dict for now (still server-bounded in Fase 2).
         profile = body.profile
@@ -124,6 +138,8 @@ async def login(body: LoginIn):
         raise HTTPException(status_code=401, detail="Credenziali non valide")
     if not verify_password(body.password, user.get("password_hash", "")):
         raise HTTPException(status_code=401, detail="Credenziali non valide")
+    if user.get("suspended"):
+        raise HTTPException(status_code=403, detail="Account sospeso: contatta l'amministratore")
     return {"access_token": make_token(user), "user": public_user(user)}
 
 

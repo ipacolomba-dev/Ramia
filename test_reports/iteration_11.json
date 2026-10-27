@@ -1,0 +1,39 @@
+{
+  "summary": "Retest of the iteration-10 fixes only. All 4 fix groups PASS. Backend: test_platform_areas.py 16/16 and new test_iter11_fixes.py 15/15. Frontend (375x667 web preview): history back from lot form, Incassi and Analisi; Scegli quote -> 'Scelto'; tracciamento 'Aggiorna stato' shown only to the selected carrier (others see the waiting text), and a tracking update works; consumer /buyer/trattative redirects to /buyer/mercato; requisiti-mercato Back returns to /producer/export; pending banner shows for unapproved business and stays hidden for approved; '1 risposta' singular. No regressions in the retested areas.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/logistics/requests/{id}/quotes", "issue": "Quotes are still accepted after a carrier is chosen (status 'assigned'). The same company can also quote several times. Suggest returning 422 when carrier_id is set and de-duplicating per company_id."},
+      {"endpoint": "POST /api/logistics/requests/{id}/select-quote", "issue": "Check-then-set is not atomic, so two parallel selects could both succeed. Use update_one({_id, carrier_id: {$exists: false}}) and check modified_count. A non-creator gets 404 instead of 403. That is acceptable, just noted."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter11_fixes.py",
+    "/app/backend/tests/test_platform_areas.py",
+    "/app/backend/tests/iter11_ui_seed.py",
+    "/app/test_reports/pytest/iter11_fixes.xml",
+    "/app/test_reports/pytest/iter11_platform.xml"
+  ],
+  "action_items": [
+    "Optional: block new quotes on shipments that already have a carrier_id (422), and de-duplicate quotes per company.",
+    "Optional: make select-quote atomic (conditional update on carrier_id absent)."
+  ],
+  "critical_code_review_comments": [
+    "AreaTabs backBehavior='history' is correct and verified.",
+    "add_tracking correctly filters on carrier_id == current uid (403 otherwise). is_carrier is computed correctly.",
+    "admin/users uses re.escape. Searches for '(', '[', '*' and '.*' return 200 and are treated literally.",
+    "The RFQ free-plan limit counts only open RFQs, so a business on the free plan can close one and open another. That matches the stated design."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter11_fixes.py", "/app/backend/tests/iter11_ui_seed.py"],
+  "success_rate": {"backend": "100% (31/31)", "frontend": "100% (all retested fix flows)"},
+  "seed_data_creation": "TEST_ shipments, RFQs and users were created for the run and then deleted: a TEST_ logistics user, a TEST_ unapproved producer, test_ui_pending_biz@example.com, the TEST_UI ship and the TEST_UI RFQ. business@demo.it is back on the free plan and no user is suspended. Older leftovers from earlier iterations are still in the DB and were not touched: 3 'TEST ...' shipments and several test_*@ users.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run pytest with -n 1, because pytest.ini adds xdist args. Export EXPO_PUBLIC_BACKEND_URL first. To create a selectable shipment for UI tests, run 'python3 tests/iter11_ui_seed.py' (prints shipment_id quote_id). Run 'python3 tests/iter11_ui_seed.py clean' afterwards. The back-button testID is header-back-button."
+}

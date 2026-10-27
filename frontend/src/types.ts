@@ -522,6 +522,7 @@ export interface ShippingRequest {
   cold_chain?: boolean;
   service_size?: string | null;
   creator_id: string;
+  carrier_id?: string | null;
   creator_name: string;
   creator_role: string;
   status: string;
@@ -559,4 +560,147 @@ export interface AdminStats {
   b2b_agreements: number;
   shipping_requests: number;
   label_requests: number;
+}
+
+export interface Lot {
+  id: string;
+  product_id?: string | null;
+  product_name: string;
+  lot_code: string;
+  production_date?: string | null;
+  expiry_date?: string | null;
+  quantity: number;
+  unit: string;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface ReceivedOrder {
+  id: string;
+  created_at: string;
+  customer_name: string;
+  city?: string | null;
+  status: string;
+  items: OrderItem[];
+  subtotal: number;
+}
+
+export interface ProducerEarnings {
+  orders_total: number;
+  b2b_total: number;
+  gross: number;
+  commission: number;
+  net: number;
+  rate: number;
+  monthly: { month: string; amount: number }[];
+  payment_note: string;
+}
+
+export interface RfqResponse {
+  id: string;
+  producer_id: string;
+  producer_name: string;
+  message: string;
+  price?: string | null;
+  created_at: string;
+}
+
+export interface Rfq {
+  id: string;
+  title: string;
+  category?: string | null;
+  quantity: string;
+  target_price?: string | null;
+  destination?: string | null;
+  deadline?: string | null;
+  notes?: string | null;
+  buyer_id: string;
+  buyer_name: string;
+  status: "open" | "closed";
+  responses: RfqResponse[];
+  responses_count?: number;
+  created_at: string;
+}
+
+export interface BuyerPlan {
+  id: string;
+  price: number;
+  name: string;
+  name_en: string;
+  perks_it: string[];
+  perks_en: string[];
+}
+
+export interface MyQuote {
+  id: string;
+  price: number;
+  transit_days: number;
+  message: string;
+  request_id: string;
+  request_title: string;
+  origin?: string;
+  destination?: string;
+  status: string;
+  selected: boolean;
+  created_at: string;
+}
+
+export interface TrackingEvent {
+  id: string;
+  status: "assigned" | "picked_up" | "in_transit" | "delivered" | "issue";
+  location?: string | null;
+  note?: string | null;
+  by: string;
+  at: string;
+}
+
+export interface TrackedShipment {
+  id: string;
+  title: string;
+  origin?: string;
+  destination?: string;
+  status: string;
+  events: TrackingEvent[];
+  is_carrier?: boolean;
+}
+
+export interface ComplianceDoc {
+  id: string;
+  title: string;
+  doc_type: string;
+  expiry_date?: string | null;
+  filename: string;
+  size: number;
+  ext: string;
+  created_at: string;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  role: Role | "admin";
+  company_name?: string | null;
+  region?: string | null;
+  approved: boolean;
+  suspended: boolean;
+  email_verified: boolean;
+}
+
+export interface Category {
+  slug: string;
+  name: string;
+  name_en?: string | null;
+  products: number;
+}
+
+export interface BuyerAnalytics {
+  orders_count: number;
+  orders_spend: number;
+  b2b_agreements: number;
+  b2b_spend: number;
+  negotiations: number;
+  open_requests: number;
+  top_producers: { name: string; amount: number }[];
+  top_products: { name: string; amount: number }[];
 }

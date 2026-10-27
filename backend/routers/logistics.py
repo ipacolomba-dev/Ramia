@@ -87,6 +87,10 @@ async def join_request(req_id: str, user: dict = Depends(require_roles("producer
 @router.post("/logistics/requests/{req_id}/quotes")
 async def add_quote(req_id: str, body: QuoteIn, user: dict = Depends(require_approved_roles("logistics"))):
     doc = await _get_request(req_id)
+    if doc.get("carrier_id"):
+        raise HTTPException(status_code=422, detail="Il cliente ha già scelto il trasportatore")
+    if any(q.get("company_id") == str(user["_id"]) for q in doc.get("quotes", [])):
+        raise HTTPException(status_code=409, detail="Hai già inviato un preventivo per questa spedizione")
     quote = {
         "id": str(uuid.uuid4()),
         "company_id": str(user["_id"]),

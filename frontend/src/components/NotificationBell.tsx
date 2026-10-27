@@ -6,6 +6,7 @@ import Ionicons from "@react-native-vector-icons/ionicons";
 
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { alertsRouteFor } from "@/src/roles";
 import { fonts, useTheme } from "@/src/theme";
 
 /** Bell with an unread-alert badge; taps through to the regulatory alerts screen. */
@@ -13,7 +14,7 @@ export function NotificationBell({ testID = "notification-bell" }: { testID?: st
   const { colors } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
-  const enabled = user?.role === "producer" || user?.role === "admin";
+  const enabled = !!user && ["producer", "admin", "business"].includes(user.role);
 
   const q = useQuery({
     queryKey: ["reg-alerts-unread"],
@@ -29,7 +30,7 @@ export function NotificationBell({ testID = "notification-bell" }: { testID?: st
     <Pressable
       testID={testID}
       accessibilityRole="button"
-      onPress={() => router.push("/trade/alerts")}
+      onPress={() => router.push(alertsRouteFor(user?.role) as any)}
       hitSlop={10}
       style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
     >
