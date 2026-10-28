@@ -7,6 +7,9 @@ from models import (
     AgreementIn, AgreementRespondIn, B2BMessageIn, B2BOfferIn, LabelAcceptIn,
     LabelOfferIn, LabelRequestIn, LabelStatusIn, NegotiationStartIn, now_utc,
 )
+from core.permissions import require_perm
+from core.matches import register_match
+from core.rules import snapshot_for
 from security import current_user, require_approved_roles, require_roles
 
 router = APIRouter(tags=["b2b"])
@@ -71,7 +74,7 @@ async def close_offer(offer_id: str, user: dict = Depends(require_roles("produce
 # ---------------- Negotiations ----------------
 
 @router.post("/b2b/offers/{offer_id}/negotiations")
-async def start_negotiation(offer_id: str, body: NegotiationStartIn, user: dict = Depends(require_approved_roles("business"))):
+async def start_negotiation(offer_id: str, body: NegotiationStartIn, user: dict = Depends(require_perm("negotiation:start", approved=True))):
     offer = await get_offer(offer_id)
     existing = await db.negotiations.find_one({
         "offer_id": offer_id, "business_id": str(user["_id"]), "status": {"$ne": "closed"},
@@ -98,10 +101,11 @@ async def start_negotiation(offer_id: str, body: NegotiationStartIn, user: dict 
     if body.message:
         doc["messages"].append({
             "id": str(uuid.uuid4()), "kind": "message", "sender_id": str(user["_id"]),
-            "sender_name": user.get("company_name") or user.get("name", ""), "sender_role": "business",
+            "sender_name": user.get("company_name") or user.get("name", ""), "sender_role": user["role"],
             "text": body.message, "at": now_utc().isoformat(),
         })
     await db.negotiations.insert_one(doc)
+    await register_match(offer["producer_id"], str(user["_id"]), "negotiation", doc["_id"])
     await db.b2b_offers.update_one({"_id": offer_id}, {"$set": {"status": "in_negotiation"}})
     return _clean(doc)
 
@@ -195,6 +199,7 @@ async def respond_agreement(neg_id: str, body: AgreementRespondIn, user: dict = 
             "producer_name": neg.get("producer_name", ""), "business_id": neg["business_id"],
             "business_name": neg.get("business_name", ""), "price": last["price"], "qty": last["qty"],
             "terms": last.get("text", ""), "status": "accepted", "created_at": now_utc(),
+            "commercial_snapshot": await snapshot_for("mediated_sale", float(last.get("price") or 0) * float(last.get("qty") or 0)),
         })
     neg = await _get_neg(neg_id)
     return _clean(neg)
@@ -292,6 +297,7 @@ async def accept_label_offer(req_id: str, body: LabelAcceptIn, user: dict = Depe
             "status": "in_progress",
             "assigned_collaborator_id": body.collaborator_id,
             "assigned_collaborator_name": offer["collaborator_name"],
+            "commercial_snapshot": await snapshot_for("labels", float(offer.get("price") or 0)),
         }},
     )
     req = await _get_label_request(req_id)

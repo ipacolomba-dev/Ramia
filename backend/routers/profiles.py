@@ -29,6 +29,9 @@ def _public_profile(u: dict) -> dict:
         "awards": u.get("awards") or [],
         "fairs": u.get("fairs") or [],
         "billing": u.get("billing") or {},
+        "verification_status": u.get("verification_status"),
+        "verified_badge": u.get("verification_status") == "approved",
+        "verified_at": u["verified_at"].isoformat() if hasattr(u.get("verified_at"), "isoformat") else None,
     }
 
 
@@ -72,12 +75,14 @@ async def list_producers(user: dict = Depends(current_user)):
             "bio_en": d.get("bio_en"),
             "product_count": count,
             "certifications": d.get("certifications") or [],
+            "verified_badge": d.get("verification_status") == "approved",
         })
     return out
 
 
 @router.get("/producers/{producer_id}")
-async def get_producer(producer_id: str, user: dict = Depends(current_user)):
+async def get_producer(producer_id: str):
+    """Public producer page (no login): shows the "Verificato da 'Ra mia" badge."""
     doc = await db.users.find_one({"_id": producer_id, "role": "producer"})
     if not doc:
         raise HTTPException(status_code=404, detail="Produttore non trovato")

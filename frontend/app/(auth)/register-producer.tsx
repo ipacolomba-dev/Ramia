@@ -86,7 +86,7 @@ export default function RegisterProducer() {
 
   const mutation = useMutation({
     mutationFn: () =>
-      api<{ access_token: string; user: User }>("/auth/register", {
+      api<{ access_token: string; refresh_token: string; user: User }>("/auth/register", {
         method: "POST",
         body: {
           email, password, name: name || company.brand_name || company.legal_name, role: "producer", locale: "it",
@@ -97,7 +97,7 @@ export default function RegisterProducer() {
         },
       }),
     onSuccess: async (data) => {
-      await signIn(data.access_token, data.user);
+      await signIn(data.access_token, data.user, data.refresh_token);
       toast.show(`${t("common.confirm")} ✓`);
       router.replace(homeFor(data.user.role) as any);
     },

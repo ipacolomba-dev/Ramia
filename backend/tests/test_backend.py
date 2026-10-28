@@ -165,12 +165,11 @@ def test_visibility_plans_and_purchase(tokens):
     plans = r.json()
     assert len(plans) >= 1
 
-    r2 = requests.post(f"{API}/visibility/purchase", headers=H(ptoken), json={"plan_id": "boost7"}, timeout=10)
+    # visibility is now paid through Stripe Checkout (activated on payment confirmation)
+    r2 = requests.post(f"{API}/payments/checkout", headers=H(ptoken),
+                       json={"kind": "visibility", "ref_id": "boost7", "origin_url": "https://example.test"}, timeout=30)
     assert r2.status_code == 200, r2.text
-    j = r2.json()
-    assert j["plan_id"] == "boost7"
-    assert j["payment"] == "simulated"
-    assert "featured_until" in j
+    assert r2.json()["url"].startswith("https://")
 
 
 # -----------------------------------------------------------------------------
@@ -190,9 +189,9 @@ def test_order_with_items_decrements_stock(tokens):
     r2 = requests.post(f"{API}/orders", headers=H(ctoken), json=body, timeout=10)
     assert r2.status_code == 200, r2.text
     order = r2.json()
-    assert order["status"] == "paid"
-    assert order["payment"] == "simulated"
-    assert order["total"] == round(prod["price"] * 1, 2)
+    assert order["status"] == "awaiting_payment"
+    assert order["payment"] == "stripe"
+    assert order["goods_total"] == round(prod["price"] * 1, 2)
 
     # Verify stock decreased
     r3 = requests.get(f"{API}/products/{pid}", headers=H(ctoken), timeout=10)
@@ -210,7 +209,7 @@ def test_order_with_package(tokens):
     }
     r = requests.post(f"{API}/orders", headers=H(ctoken), json=body, timeout=10)
     assert r.status_code == 200, r.text
-    assert r.json()["total"] == pkg["price"]
+    assert r.json()["goods_total"] == pkg["price"]
 
 
 def test_orders_mine(tokens):

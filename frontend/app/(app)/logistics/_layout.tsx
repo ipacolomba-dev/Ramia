@@ -9,10 +9,11 @@ export default function LogisticsLayout() {
       tabs={[
         { name: "spedizioni", label: ["Spedizioni", "Shipments"], icon: "cube" },
         { name: "preventivi", label: ["Preventivi", "Quotes"], icon: "pricetags" },
+        { name: "tariffe", label: ["Tariffari", "Rates"], icon: "calculator" },
         { name: "tracciamento", label: ["Tracciamento", "Tracking"], icon: "navigate" },
         { name: "profilo", label: ["Profilo", "Profile"], icon: "person" },
       ]}
-      hidden={["azienda"]}
+      hidden={["azienda", "incassi"]}
     />
   );
 }

@@ -1,0 +1,62 @@
+{
+  "summary": "Iteration 13 – real Stripe payments with escrow/split, Match Registry, logistics rate-card engine. Backend: 7/7 existing + 11/11 new extended tests pass (checkout, owner-only status, cancel/stock, escrow hold→confirm→payout pending_connect, dispute→admin release/refund with audit, settings bounds 1-60, auto-release, payouts/mine, Connect 503 Italian, matches role-scoped + chain valid, rate-card CRUD/permissions, instant-quote no-match/forbidden, book + shipment checkout amount = carrier+fee). 2 extra regression tests reproduce real bugs (paid-after-cancel resurrects order; shipment delivered before payment → escrow stuck). REAL end-to-end Stripe hosted checkout completed twice with card 4242 (checkout → checkout.stripe.com → /pagamento 'Pagamento riuscito' → order 'In garanzia'). Frontend: all requested flows verified on 390x844 (buyer Da pagare/Paga ora/Annulla, dispute sheet, confirm delivery, cancelled return page, producer instant quote → book → Pagamento trasporto → Stripe redirect €218.16, producer/logistics Incassi + Collega conto toast, Tariffari list + create, tracking POD required, admin Pagamenti in garanzia release w/ note, Registro Match 'Registro integro'). Main gaps: Stripe refunds fail with emergent key but UI shows 'Rimborsato'; stale 'Pagamento simulato' copy; edge-case escrow bugs. No deprecated Expo packages detected. Sheet has no KeyboardAvoidingView (native keyboard will cover inputs).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "routers/payments.py::_fulfill (order) + POST /api/orders/{id}/cancel", "issue": "Cancelling an awaiting_payment order restores stock but the Stripe Checkout session stays open (valid ~24h). If the buyer then pays, _fulfill unconditionally sets status=paid + escrow held → order resurrected with stock already restored (oversell, ghost escrow). Reproduced by tests/test_iter13_payments_ext.py::test_paid_after_cancel_does_not_resurrect_order. Fix: in _fulfill update only {_id, status:'awaiting_payment'}; if no match flag tx 'needs_refund' (attempt refund/notify admin); also mark previous sessions expired on cancel.", "priority": "HIGH"},
+      {"endpoint": "POST /api/payments/checkout kind=shipment + POST /api/logistics/requests/{id}/tracking", "issue": "Carrier can mark a shipment 'delivered' (with POD) before the producer pays. Checkout is still allowed afterwards; _fulfill sets escrow held but release_shipment only runs on the delivered tracking event (now blocked: 'Spedizione già consegnata') and there is no auto-release for shipments → funds held forever, no carrier payout. Reproduced by test_shipment_delivered_before_payment_escrow_not_stuck. Fix: in _fulfill(shipment) release immediately if tracking_status=='delivered'/pod exists, or block delivered until paid.", "priority": "HIGH"},
+      {"endpoint": "POST /api/admin/escrow/{kind}/{id}/resolve action=refund", "issue": "Real Stripe refund via raw stripe SDK fails with the emergent test key (backend log: 'Rimborso Stripe non riuscito ...: Invalid response body from API: 404 page not found') even for a genuinely paid session → escrow.refund_status='manual_required', yet escrow.status/order.status become 'refunded' and BOTH admin console and buyer /buyer/ordini show 'Rimborsato'. refund_status is never surfaced in the frontend (no reference in app/ or src/). Money is NOT returned to the buyer while UI says it is.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/orders", "issue": "awaiting_payment orders reserve stock indefinitely (21 unpaid orders currently in DB). Add a TTL sweep (e.g. 24h = Stripe session expiry) that cancels and restores stock."},
+      {"endpoint": "core/matches.py::register_match", "issue": "Chain sequencing relies on in-process asyncio.Lock; with >1 worker a seq DuplicateKeyError falls into find_one by pair which returns None → match entry silently lost. Retry with next seq instead."},
+      {"endpoint": "POST/PATCH /api/logistics/rate-cards", "issue": "origin_region/destination_region are free text, not validated against REGIONS or '*'; a typo (e.g. 'Lombardia ' ok, 'Lombadia' not) creates a card that never matches any quote."},
+      {"endpoint": "PUT /api/admin/payment-settings", "issue": "auto_release_at is frozen at hold time, so changing days only affects future payments; UI copy 'Rilascio automatico dopo N giorni' does not say this."},
+      {"endpoint": "tests (pre-existing, unrelated)", "issue": "Full suite: 14 failures, of which 3 were test_payments_logistics failing only due to event-loop sharing with my new file (fixed by sharing LOOP). Remaining pre-existing: test_trade_durability x3 (monkeypatched _compute_market returns 2 values, code now unpacks 3: data, live, kb), test_trade_assistant market analysis x4, registration consent x3, regulatory center counts x1."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Checkout pay button / i18n", "issue": "Pay button still reads 'Paga (simulato)' although payment is now real Stripe. Other stale strings: checkout.successSub ('Pagamento simulato: nessuna carta reale...'), orders.simulated, visibility.simulatedNote, earnings.note (used in app/(app)/admin/incassi.tsx:77). Reference: src/i18n.tsx:102,104,111,174,371", "testID": "checkout-pay-button", "priority": "HIGH"},
+      {"component": "Refund status display", "issue": "Orders/escrow items with escrow.refund_status='manual_required' show 'Rimborsato' to buyer and admin; add a distinct 'Rimborso da eseguire manualmente' state in admin/pagamenti.tsx and buyer/ordini.tsx", "testID": "escrow-refund-<id>", "priority": "HIGH"},
+      {"component": "Logistics tracking list", "issue": "'Aggiorna stato' button still shown for delivered shipments; backend answers 422 'Spedizione già consegnata'. Hide when s.status==='delivered'. Reference: app/(app)/logistics/tracciamento.tsx:66", "testID": "track-update-<id>", "priority": "MEDIUM"},
+      {"component": "InstantQuote", "issue": "Quote results are not cleared when origin/destination/pallets/weight/cold change; booking then sends the NEW body with the OLD card_id → 404 or price different from the displayed one. Reset quote (quote.reset()) on input change. Reference: src/screens/InstantQuote.tsx:56-75", "testID": "iq-book-<card>", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/logistics/incassi (Payouts stats)", "issues": ["'Da ricevere' value truncated to '€1080,...' at 390px width – use adjustsFontSizeToFit or smaller font"]},
+      {"screen": "ShippingDetail", "issues": ["Payment card uses '€216.00 + commissione €2.16 = €218.16' (dot decimals) while the rest of the app uses it-IT '€218,16'", "Header date shown as '10/28/2026' (US format) in Italian UI"]},
+      {"screen": "/buyer/ordini dispute sheet", "issues": ["No spacing between the explanatory text and the 'Cosa è successo?' label"]},
+      {"screen": "/admin/pagamenti", "issues": ["escrow-days-input is empty (current value only as placeholder); acceptable but prefill would be clearer"]}
+    ],
+    "react_native_issues": [
+      {"component": "Sheet (Modal) keyboard handling", "issue": "Sheet has no KeyboardAvoidingView; on iOS/Android the keyboard will cover dispute-reason/dispute-submit, track-pod-recipient/track-submit, rate-* inputs and iq-confirm-book sheet. Reference: src/components/ui.tsx:380"},
+      {"component": "shadow* style props", "issue": "Web console warns '\"shadow*\" style props are deprecated. Use \"boxShadow\"'. Reference: src/components/ui.tsx:403-406 (toast) and other styles"}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_payments_logistics.py", "/app/backend/tests/test_iter13_payments_ext.py", "/app/test_reports/pytest/iter13.xml", "/app/test_reports/pytest/iter13_full.xml"],
+  "action_items": [
+    "HIGH: _fulfill(order) must only transition awaiting_payment→paid; handle payments for cancelled orders (flag needs_refund / auto-refund / admin alert) and stop old sessions on cancel",
+    "HIGH: Handle shipment paid after POD (release immediately in _fulfill if delivered) or disallow 'delivered' tracking / checkout combination",
+    "HIGH: Surface escrow.refund_status (manual_required) in admin console and buyer orders instead of plain 'Rimborsato'; note that raw stripe SDK Refund/Transfer do not work with the emergent test key",
+    "HIGH: Replace stale 'simulato' copy in src/i18n.tsx (checkout.pay, checkout.successSub, orders.simulated, visibility.simulatedNote, earnings.note) – payments are real now",
+    "MEDIUM: Hide 'Aggiorna stato' for delivered shipments (logistics/tracciamento.tsx:66)",
+    "MEDIUM: Reset instant quote results when inputs change (InstantQuote.tsx)",
+    "MEDIUM: Add KeyboardAvoidingView to Sheet (src/components/ui.tsx:380)",
+    "LOW: TTL auto-cancel for stale awaiting_payment orders (stock reservation); validate rate-card regions against REGIONS/'*' and use region picker in rate form; it-IT number/date formatting in ShippingDetail; Payouts stat truncation; register_match multi-worker retry",
+    "LOW: Update stale pre-existing tests (test_trade_durability monkeypatch must return 3-tuple)"
+  ],
+  "critical_code_review_comments": [
+    "Amounts are always computed server-side (good); status endpoint scoped by user_id (good); _fulfill idempotent via processed flag (good)",
+    "release_order sets status='completed' – buyer badge shows 'Rilasciato' (escrow label) which is seller-centric wording for a buyer; consider 'Completato' for buyer",
+    "admin_escrow loads up to 200 orders + 200 shipments + 200 payouts without pagination",
+    "get_settings returns doc with _id 'default' converted to id – fine",
+    "Match Registry: B2C consumer orders also create introduction entries (consumer↔producer) – confirm this is intended for the introduction commission"
+  ],
+  "updated_files": ["/app/backend/tests/test_iter13_payments_ext.py (new)"],
+  "success_rate": {"backend": "90% (18/20 feature tests; 2 failing are new bug-repro tests)", "frontend": "95% (all requested flows work; copy/UX issues listed)"},
+  "seed_data_creation": "Test orders for consumatore@demo.it (several cancelled/paid/refunded, 2 real Stripe test payments), several TEST_ shipping requests booked by produttore@demo.it and delivered by logistica@demo.it (pending_connect payouts), one cancelled-then-paid order in 'paid/held' state from bug repro. TEST_ rate cards were deleted.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run: cd /app/backend && export MONGO_URL/DB_NAME/STRIPE_API_KEY from .env, EXPO_PUBLIC_BACKEND_URL=http://localhost:8001 (or public URL) and pytest tests/test_payments_logistics.py tests/test_iter13_payments_ext.py -n 0. Both files share one asyncio LOOP (the app motor client binds to the first loop) – keep that when adding tests that call routers.payments._fulfill. Real Stripe hosted checkout works in Playwright: fill #email, #cardNumber 4242..., #cardExpiry '12 / 34', #cardCvc, #billingName, #billingPostalCode, click .SubmitButton, then wait for **/pagamento**. Sheets animate – wait ~1.5s after opening before clicking buttons inside.",
+  "rca_of_issue": "Paid-after-cancel: cancel_unpaid flips status and restores stock but leaves the Stripe session open; _fulfill's orders.update_one filter is {_id} only. Shipment stuck escrow: release_shipment is only triggered from add_tracking(delivered); _amount_for(shipment) does not check tracking_status and _fulfill(shipment) never checks for existing POD. Refund: stripe.Refund via the raw SDK isn't supported by the emergent proxy key (404 page not found) → exception swallowed → manual_required, but status still set to 'refunded'."
+}

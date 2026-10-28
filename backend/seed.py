@@ -213,3 +213,14 @@ async def seed():
     await db.label_requests.insert_one(label_request)
 
     logger.info("Seed completato: %d prodotti, %d pacchetti, %d offerte B2B", len(products), len(packages), len(b2b_offers))
+
+
+async def seed_extras():
+    """Idempotent demo data added after the first seed (runs on every start, inserts only what is missing)."""
+    if not await db.users.find_one({"email": "rivenditore@demo.it"}):
+        await db.users.insert_one({
+            "_id": str(uuid.uuid4()), "email": "rivenditore@demo.it", "password_hash": hash_password("Demo1234!"),
+            "name": "Lucia Ferrante", "role": "reseller", "locale": "it", "featured_until": None,
+            "company_name": "Bottega Mediterranea Srl", "region": "Lombardia", "city": "Milano",
+            "business_type": "rivenditore", "approved": True, "email_verified": True, "created_at": now_utc(),
+        })

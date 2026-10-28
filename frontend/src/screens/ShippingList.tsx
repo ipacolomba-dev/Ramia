@@ -138,6 +138,15 @@ export default function LogisticsTab() {
       {canPropose && (
         <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.md }}>
           <Pressable
+            testID="shipping-instant-quote"
+            onPress={() => router.push(`${base}/spedizioni/preventivo` as any)}
+            style={({ pressed }) => [styles.fab, { backgroundColor: colors.brandSecondary, marginBottom: spacing.sm }, pressed && { opacity: 0.9 }]}
+            accessibilityRole="button"
+          >
+            <Ionicons name="flash" size={20} color={colors.onBrandSecondary} />
+            <Text style={[styles.fabText, { color: colors.onBrandSecondary }]}>{t("common.language") === "en" ? "Instant quote" : "Preventivo immediato"}</Text>
+          </Pressable>
+          <Pressable
             testID="shipping-new-fab"
             onPress={() => router.push(`${base}/spedizioni/form` as any)}
             style={({ pressed }) => [styles.fab, pressed && { opacity: 0.9 }]}

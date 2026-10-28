@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -6,27 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db import db
 from models import (
-    BaseDocument, OrderIn, PackageIn, ProductDoc, ProductIn, PurchaseIn, now_utc,
+    BaseDocument, OrderIn, PackageIn, ProductDoc, ProductIn, now_utc,
 )
+from core.permissions import require_perm
+from core.rules import snapshot_for
+from routers.governance import visibility_plans
 from security import current_user, require_roles
 
 router = APIRouter(tags=["market"])
-
-VISIBILITY_PLANS = [
-    {"id": "boost7", "days": 7, "price": 19.0,
-     "name": "Evidenza 7 giorni", "name_en": "Featured for 7 days",
-     "perks_it": ["Prodotti in testa alla home", "Badge In Evidenza"],
-     "perks_en": ["Products on top of home", "Featured badge"]},
-    {"id": "boost30", "days": 30, "price": 49.0,
-     "name": "Evidenza 30 giorni", "name_en": "Featured for 30 days",
-     "perks_it": ["Prodotti in testa alla home", "Badge In Evidenza", "Newsletter curatore"],
-     "perks_en": ["Products on top of home", "Featured badge", "Curator newsletter"]},
-    {"id": "boost90", "days": 90, "price": 99.0,
-     "name": "Top Producer 90 giorni", "name_en": "Top Producer for 90 days",
-     "perks_it": ["Prodotti in testa alla home", "Badge Top Producer", "Newsletter curatore", "Priorità etichette"],
-     "perks_en": ["Products on top of home", "Top Producer badge", "Curator newsletter", "Label priority"]},
-]
-
 
 def _featured_until(user: dict):
     fu = user.get("featured_until")
@@ -59,10 +47,11 @@ async def list_products(
     if category:
         query["category"] = category
     if q:
+        rx = re.escape(q)
         query["$or"] = [
-            {"name": {"$regex": q, "$options": "i"}},
-            {"description": {"$regex": q, "$options": "i"}},
-            {"producer_name": {"$regex": q, "$options": "i"}},
+            {"name": {"$regex": rx, "$options": "i"}},
+            {"description": {"$regex": rx, "$options": "i"}},
+            {"producer_name": {"$regex": rx, "$options": "i"}},
         ]
     docs = await db.products.find(query).sort("created_at", -1).to_list(500)
     items = [await _serialize_product(d) for d in docs]
@@ -167,7 +156,7 @@ async def create_package(body: PackageIn, user: dict = Depends(require_roles("ad
 # ---------------- Orders ----------------
 
 @router.post("/orders")
-async def create_order(body: OrderIn, user: dict = Depends(current_user)):
+async def create_order(body: OrderIn, user: dict = Depends(require_perm("market:buy"))):
     items, total = [], 0.0
 
     if body.package_id:
@@ -178,12 +167,16 @@ async def create_order(body: OrderIn, user: dict = Depends(current_user)):
             prod = await db.products.find_one({"_id": pid, "status": "approved", "deleted_at": None})
             if not prod:
                 continue
+            if prod.get("stock", 0) < 1:
+                raise HTTPException(status_code=422, detail=f"Scorta insufficiente: {prod['name']}")
             items.append({
                 "product_id": pid, "name": prod["name"], "price": prod["price"],
                 "unit": prod.get("unit", ""), "qty": 1, "producer_id": prod.get("producer_id", ""),
             })
         if not items:
             raise HTTPException(status_code=422, detail="Pacchetto non disponibile")
+        for it in items:
+            await db.products.update_one({"_id": it["product_id"]}, {"$inc": {"stock": -1}})
         total = float(pkg["price"])
         pkg_id = body.package_id
     else:
@@ -195,6 +188,8 @@ async def create_order(body: OrderIn, user: dict = Depends(current_user)):
                 raise HTTPException(status_code=404, detail=f"Prodotto {it.product_id} non disponibile")
             if prod.get("stock", 0) < it.qty:
                 raise HTTPException(status_code=422, detail=f"Scorta insufficiente: {prod['name']}")
+            if (prod.get("unit") or "").lower() not in ("kg", "g", "l", "lt", "litro", "litri", "hl") and not float(it.qty).is_integer():
+                raise HTTPException(status_code=422, detail=f"Quantità intera richiesta per {prod['name']}")
             items.append({
                 "product_id": it.product_id, "name": prod["name"], "price": prod["price"],
                 "unit": prod.get("unit", ""), "qty": it.qty, "producer_id": prod.get("producer_id", ""),
@@ -204,15 +199,20 @@ async def create_order(body: OrderIn, user: dict = Depends(current_user)):
             await db.products.update_one({"_id": it["product_id"]}, {"$inc": {"stock": -it["qty"]}})
         pkg_id = None
 
+    # Golden rule: freeze the commercial rules applied to this order (never updated afterwards).
+    snapshot = await snapshot_for("mediated_sale", total)
     order = {
         "_id": str(uuid.uuid4()),
         "user_id": str(user["_id"]),
         "user_name": user.get("name", ""),
         "items": items,
         "package_id": pkg_id,
-        "total": round(total, 2),
-        "status": "paid",
-        "payment": "simulated",
+        "goods_total": round(total, 2),
+        "buyer_fee": snapshot["buyer_fee"],
+        "total": round(total + snapshot["buyer_fee"], 2),
+        "commercial_snapshot": snapshot,
+        "status": "awaiting_payment",  # becomes "paid" (funds held in escrow) only after the Stripe confirmation
+        "payment": "stripe",
         "address": body.address,
         "city": body.city,
         "zip": body.zip,
@@ -237,36 +237,28 @@ async def my_orders(user: dict = Depends(current_user)):
 
 @router.get("/visibility/plans")
 async def plans(user: dict = Depends(current_user)):
-    return VISIBILITY_PLANS
+    return await visibility_plans()
 
 
-@router.post("/visibility/purchase")
-async def purchase(body: PurchaseIn, user: dict = Depends(require_roles("producer"))):
-    plan = next((p for p in VISIBILITY_PLANS if p["id"] == body.plan_id), None)
-    if not plan:
-        raise HTTPException(status_code=404, detail="Piano non trovato")
+async def activate_visibility(producer_id: str, plan_id: str, session_id: str):
+    """Called once by the payments module after Stripe confirms the visibility payment."""
+    plan = next((p for p in await visibility_plans() if p["id"] == plan_id), None)
+    user = await db.users.find_one({"_id": producer_id})
+    if not plan or not user:
+        return
     current = _featured_until(user)
     base = current if current and current > now_utc() else now_utc()
     featured_until = base + timedelta(days=plan["days"])
-    producer_id = str(user["_id"])
     await db.users.update_one({"_id": user["_id"]}, {"$set": {"featured_until": featured_until}})
     await db.products.update_many(
         {"producer_id": producer_id, "deleted_at": None},
         {"$set": {"featured_until": featured_until}},
     )
-    purchase_doc = {
-        "_id": str(uuid.uuid4()),
-        "user_id": producer_id,
-        "plan_id": plan["id"],
-        "plan_name": plan["name"],
-        "price": plan["price"],
-        "payment": "simulated",
-        "featured_until": featured_until,
-        "created_at": now_utc(),
-    }
-    await db.purchases.insert_one(purchase_doc)
-    purchase_doc["id"] = purchase_doc.pop("_id")
-    return purchase_doc
+    await db.purchases.insert_one({
+        "_id": str(uuid.uuid4()), "user_id": producer_id, "plan_id": plan["id"], "plan_name": plan["name"],
+        "price": plan["price"], "payment": "stripe", "session_id": session_id, "status": "paid",
+        "featured_until": featured_until, "created_at": now_utc(),
+    })
 
 
 @router.get("/visibility/purchases/mine")

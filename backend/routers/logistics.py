@@ -24,7 +24,7 @@ async def list_requests(mine: bool = False, user: dict = Depends(current_user)):
 
 
 @router.post("/logistics/requests")
-async def create_request(body: ShippingRequestIn, user: dict = Depends(require_roles("producer", "business"))):
+async def create_request(body: ShippingRequestIn, user: dict = Depends(require_roles("producer", "business", "reseller"))):
     doc = {
         "_id": str(uuid.uuid4()),
         **body.model_dump(),
@@ -67,7 +67,7 @@ async def get_request(req_id: str, user: dict = Depends(current_user)):
 
 
 @router.post("/logistics/requests/{req_id}/join")
-async def join_request(req_id: str, user: dict = Depends(require_roles("producer", "business"))):
+async def join_request(req_id: str, user: dict = Depends(require_roles("producer", "business", "reseller"))):
     doc = await _get_request(req_id)
     if not doc.get("shared", True):
         raise HTTPException(status_code=422, detail="Spedizione non condivisibile")

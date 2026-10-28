@@ -13,7 +13,7 @@ import type { CompanyProfile, ProfileItem } from "@/src/types";
 
 export default function ProducerPage() {
   const { colors } = useTheme();
-  const { t, lang } = useT();
+  const { t, L, lang } = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const styles = useStyles();
@@ -42,6 +42,12 @@ export default function ProducerPage() {
             <Ionicons name="leaf" size={26} color={colors.onBrandPrimary} />
           </View>
           <Text style={styles.company}>{p.company_name}</Text>
+          {(p as any).verified_badge ? (
+            <View style={styles.verified} testID="verified-badge" accessibilityLabel={L("Verificato da 'Ra mia", "Verified by 'Ra mia")}>
+              <Ionicons name="shield-checkmark" size={14} color={colors.onBrandSecondary} />
+              <Text style={styles.verifiedText}>{L("Verificato da ’Ra mia", "Verified by ’Ra mia")}</Text>
+            </View>
+          ) : null}
           {p.region ? <Text style={styles.region}>{p.region}</Text> : null}
         </View>
 
@@ -115,6 +121,8 @@ function ContactRow({ icon, text, onPress }: { icon: string; text: string; onPre
 }
 
 const useStyles = makeStyles((colors: ThemeColors) => ({
+  verified: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", backgroundColor: colors.brandSecondary, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginTop: 6 },
+  verifiedText: { fontFamily: fonts.textBold, fontSize: 12, color: colors.onBrandSecondary },
   hero: { alignItems: "center", paddingVertical: spacing.lg },
   avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center", marginBottom: spacing.md },
   company: { fontFamily: fonts.display, fontSize: 24, color: colors.onSurface, textAlign: "center" },

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
 
 import { useAuth } from "@/src/auth";
+import { VerificationBanner } from "@/src/components/VerificationBanner";
 import { Screen } from "@/src/components/ui";
 import { useT } from "@/src/i18n";
 import { usesNativeTabs } from "@/src/navigation";
@@ -79,7 +80,7 @@ export default function ProfileTab() {
     .toUpperCase();
 
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
-  const companyRoute = ({ producer: "/producer/azienda", business: "/buyer/azienda", logistics: "/logistics/azienda", collaborator: "/compliance/azienda" } as Record<string, string>)[user.role];
+  const companyRoute = ({ producer: "/producer/azienda", business: "/buyer/azienda", reseller: "/buyer/azienda", logistics: "/logistics/azienda", collaborator: "/compliance/azienda" } as Record<string, string>)[user.role];
 
   return (
     <Screen style={{ paddingBottom: 0 }}>
@@ -96,7 +97,7 @@ export default function ProfileTab() {
           <Text style={styles.email}>{user.email}</Text>
           <View style={styles.roleBadge}>
             <Ionicons
-              name={user.role === "producer" ? "leaf" : user.role === "business" ? "briefcase" : user.role === "admin" ? "shield" : user.role === "collaborator" ? "document-text" : user.role === "logistics" ? "car" : "person"}
+              name={user.role === "producer" ? "leaf" : user.role === "business" || user.role === "reseller" ? "briefcase" : user.role === "admin" ? "shield" : user.role === "collaborator" ? "document-text" : user.role === "logistics" ? "car" : "person"}
               size={12}
               color={colors.onBrandPrimary}
             />
@@ -104,6 +105,9 @@ export default function ProfileTab() {
           </View>
         </View>
 
+        <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.md }}>
+          <VerificationBanner />
+        </View>
         <View style={styles.langRow}>
           <Text style={styles.menuLabel}>{t("common.language")}</Text>
           <View style={styles.langToggle}>
@@ -130,14 +134,13 @@ export default function ProfileTab() {
               <Text style={styles.pendingText}>{t("pending.banner")}</Text>
             </View>
           )}
-          {(user.role === "consumer" || user.role === "business") && (
+          {(user.role === "consumer" || user.role === "business" || user.role === "reseller") && (
             <>
               <MenuRow icon="receipt-outline" label={t("profile.orders")} testID="menu-orders" onPress={() => router.push("/buyer/ordini")} />
               <MenuRow icon="bar-chart-outline" label={L("Analisi acquisti", "Purchase analytics")} testID="menu-buyer-analytics" onPress={() => router.push("/buyer/analisi")} />
-              <MenuRow icon="star-outline" label={L("Piani", "Plans")} testID="menu-buyer-plans" onPress={() => router.push("/buyer/piani")} tint={colors.brandSecondary} />
             </>
           )}
-          {user.role === "business" && (
+          {(user.role === "business" || user.role === "reseller") && (
             <>
               <MenuRow icon="megaphone-outline" label={L("Richieste di fornitura", "Supply requests")} testID="menu-rfq" onPress={() => router.push("/buyer/richieste")} />
               <MenuRow icon="cube-outline" label={L("Spedizioni", "Shipments")} testID="menu-buyer-shipping" onPress={() => router.push("/buyer/spedizioni")} />
@@ -145,10 +148,26 @@ export default function ProfileTab() {
           )}
           {user.role === "producer" && (
             <>
+              <MenuRow icon="hand-left-outline" label={L("Dichiara affare fuori piattaforma", "Declare off-platform deal")} testID="menu-declare-deal" onPress={() => router.push("/producer/dichiarazioni")} />
               <MenuRow icon="cash-outline" label={L("Incassi", "Earnings")} testID="menu-producer-earnings" onPress={() => router.push("/producer/incassi")} tint={colors.brandSecondary} />
               <MenuRow icon="rocket-outline" label={t("profile.visibility")} testID="menu-visibility" onPress={() => router.push("/producer/visibilita")} tint={colors.brandSecondary} />
               <MenuRow icon="shield-checkmark-outline" label={L("Area compliance", "Compliance area")} testID="menu-compliance" onPress={() => router.push("/compliance/documenti")} />
             </>
+          )}
+          {user.role === "logistics" && (
+            <MenuRow icon="cash-outline" label={L("Incassi", "Earnings")} testID="menu-carrier-earnings" onPress={() => router.push("/logistics/incassi")} tint={colors.brandSecondary} />
+          )}
+          {["producer", "business", "logistics", "collaborator", "reseller"].includes(user.role) && (
+            <>
+              <MenuRow icon="clipboard-outline" label={L("Profilo aziendale e onboarding", "Company profile & onboarding")} testID="menu-onboarding" onPress={() => router.push("/onboarding")} />
+              <MenuRow icon="shield-checkmark-outline" label={L("Documenti di verifica", "Verification documents")} testID="menu-verification" onPress={() => router.push("/verifica")} />
+            </>
+          )}
+          {(user.role === "admin" || user.role === "business") && (
+            <MenuRow icon="key-outline" label={L("Sicurezza e 2FA", "Security & 2FA")} testID="menu-security" onPress={() => router.push("/sicurezza")} />
+          )}
+          {user.role === "admin" && (
+            <MenuRow icon="shield-half-outline" label={L("Console di verifica", "Verification console")} testID="menu-verify-console" onPress={() => router.push("/admin/utenti/verifica")} />
           )}
           {companyRoute && (
             <MenuRow icon="business-outline" label={t("profile.companyProfile")} testID="menu-company-profile" onPress={() => router.push(companyRoute as any)} />
@@ -157,6 +176,10 @@ export default function ProfileTab() {
             <>
               <MenuRow icon="cash-outline" label={t("profile.earnings")} testID="menu-earnings" onPress={() => router.push("/admin/incassi")} tint={colors.brandSecondary} />
               <MenuRow icon="pricetags-outline" label={L("Categorie", "Categories")} testID="menu-categories" onPress={() => router.push("/admin/categorie")} />
+              <MenuRow icon="calculator-outline" label={L("Regole commerciali", "Commercial rules")} testID="menu-rules" onPress={() => router.push("/admin/regole")} />
+              <MenuRow icon="list-outline" label={L("Registro attività", "Audit log")} testID="menu-audit" onPress={() => router.push("/admin/audit")} />
+              <MenuRow icon="lock-closed-outline" label={L("Pagamenti in garanzia", "Escrow payments")} testID="menu-escrow" onPress={() => router.push("/admin/pagamenti")} />
+              <MenuRow icon="git-network-outline" label={L("Registro Match", "Match Registry")} testID="menu-matches" onPress={() => router.push("/admin/match")} />
             </>
           )}
           <MenuRow icon="information-circle-outline" label={t("profile.about")} testID="menu-about" onPress={() => router.push("/chi-siamo")} />

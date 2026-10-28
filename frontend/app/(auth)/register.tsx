@@ -12,6 +12,7 @@ import { ThemeColors, fonts, makeStyles, radius, spacing, useTheme } from "@/src
 const CATEGORIES: { role: Role; icon: string; route: string }[] = [
   { role: "producer", icon: "leaf", route: "/register-producer" },
   { role: "business", icon: "briefcase", route: "/register-buyer" },
+  { role: "reseller", icon: "storefront", route: "/register-buyer?role=reseller" },
   { role: "consumer", icon: "person", route: "/register-simple?role=consumer" },
   { role: "logistics", icon: "car", route: "/register-simple?role=logistics" },
   { role: "collaborator", icon: "flask", route: "/register-simple?role=collaborator" },

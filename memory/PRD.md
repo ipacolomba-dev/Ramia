@@ -113,3 +113,22 @@ Consumatore, Produttore, Business (grossista/distributore/GDO), Collaboratore et
 - Moduli dettagliati di registrazione per logistica e laboratorio (il compratore è fatto).
 - Pagamenti reali (Stripe) al posto di quelli simulati: checkout, visibilità, piani compratore.
 - Notifiche push: google-services.json al momento del deploy.
+
+## 'Ra mia — Fondamenta (Ott 2026)
+- Ruoli: nomi attuali mantenuti (consumer=buyer_b2c, business=buyer_b2b, logistics=carrier, collaborator=lab) + nuovo `reseller`.
+- core/rules.py: regole commerciali versionate in DB (`business_rules`): mediazione 3% buyer + 2% produttore, introduzione 2% (finestra 18 mesi), trasporto 1% produttore che prenota, etichette 1%, minimi per servizio. Snapshot immutabile `commercial_snapshot` su ordini, accordi B2B, scelta vettore, offerte etichette, dichiarazioni.
+- core/audit.py (audit_logs prima/dopo), core/permissions.py (matrice ruoli in DB `role_permissions`, require_perm), core/tokens.py (refresh token a rotazione).
+- Piani compratore rimossi; pacchetti visibilità da DB (`visibility_packages`).
+- routers/governance.py: regole admin, audit, permessi, preventivo commissioni, dichiarazioni affari fuori piattaforma.
+- routers/accounts.py: verifica email, reset password, 2FA TOTP (admin/business), onboarding a step per ruolo con bozza (schemi in DB), checklist documentale per ruolo (DB), stati documento, console admin, sospensione, eventi di verifica, CSV log conformità, promemoria scadenza 30/15/5 (DB), badge "Verificato da 'Ra mia".
+- API docs: /api/docs.
+### Da fare (richiesti, non ancora implementati)
+Registro Match append-only con hash; motore regole v2 (scope/promo/simulatore); pagamenti Stripe Connect con escrow/split/dispute; B2B strutturato (versioni, listini riservati, Incoterms); catalogo esteso (scaglioni, nutrizionali, ricerca salvata, catalogo pubblico); motore logistico (rate card, forbice, POD, aggregazione); flusso etichette con revisioni e bundle; e-commerce B2C completo (recesso, recensioni, EPR); negozi dropshipping reseller; control tower admin; anticipo fatture; documenti legali/GDPR; SEO.
+
+## Iterazione 13 — Pagamenti reali con escrow + Registro Match + Motore logistico
+- Stripe Checkout reale (chiave test): ordini (status awaiting_payment → paid/escrow held), trasporti, visibilità. Importi calcolati server-side. `/api/payments/checkout`, `/api/payments/status/{sid}`, `/api/webhook/stripe`.
+- Escrow: held → released (conferma cliente, POD vettore, rilascio automatico dopo N giorni da `payment_settings`) / disputed → admin release|refund (audit). Split: payout produttore = quota merce − fee snapshot; vettore = prezzo vettore. Payout `pending_connect` finché il beneficiario non collega Stripe Connect (richiede account Stripe proprio di 'Ra mia).
+- Registro Match (`core/matches.py`): append-only, hash-chain, una voce per coppia produttore↔compratore (trattativa, risposta RFQ, ordine pagato), finestra da regole; `/api/matches`, `/api/admin/matches/verify`. Dichiarazioni usano il registro.
+- Motore logistico (`routers/rates.py`): tariffari vettori CRUD, preventivo immediato con forbice prezzi e breakdown, prenotazione da tariffa, POD obbligatoria su "consegnato" che rilascia l'escrow al vettore.
+- UI: /pagamento, buyer/ordini (paga/annulla/conferma/contesta), producer+logistics incassi (Payouts), logistics/tariffe, spedizioni/preventivo, admin/pagamenti, admin/match.
+- Dati fiscali 'Ra mia: segnaposto (da fornire).

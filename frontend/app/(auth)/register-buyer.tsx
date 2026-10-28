@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Text, View } from "react-native";
 import Ionicons from "@react-native-vector-icons/ionicons";
@@ -23,6 +23,8 @@ export default function RegisterBuyer() {
   const { t, L } = useT();
   const { signIn } = useAuth();
   const router = useRouter();
+  const { role: roleParam } = useLocalSearchParams<{ role?: string }>();
+  const role = roleParam === "reseller" ? "reseller" : "business";
   const styles = useStyles();
   const consents = useConsents();
   const cats = useQuery({ queryKey: ["categories"], queryFn: () => api<Category[]>("/categories") });
@@ -40,10 +42,10 @@ export default function RegisterBuyer() {
   const isIT = f.country.trim().toLowerCase().startsWith("ital");
 
   const mutation = useMutation({
-    mutationFn: () => api<{ access_token: string; user: User }>("/auth/register", {
+    mutationFn: () => api<{ access_token: string; refresh_token: string; user: User }>("/auth/register", {
       method: "POST",
       body: {
-        email: f.email, password: f.password, name: `${f.first_name} ${f.last_name}`.trim(), role: "business", locale: "it",
+        email: f.email, password: f.password, name: `${f.first_name} ${f.last_name}`.trim(), role, locale: "it",
         company_name: f.legal_name, business_type: f.buyer_type || null,
         consents: { terms: consents.terms, privacy: consents.privacy, marketing: consents.marketing },
         profile: {
@@ -54,7 +56,7 @@ export default function RegisterBuyer() {
         },
       },
     }),
-    onSuccess: async (data) => { await signIn(data.access_token, data.user); router.replace(homeFor(data.user.role) as any); },
+    onSuccess: async (data) => { await signIn(data.access_token, data.user, data.refresh_token); router.replace(homeFor(data.user.role) as any); },
     onError: (e: Error) => setError(e.message),
   });
 
@@ -83,7 +85,7 @@ export default function RegisterBuyer() {
 
   return (
     <Screen style={{ paddingBottom: 0 }}>
-      <ScreenHeader title={t("reg.cat.business.title")} onBack={() => (step === 0 ? router.back() : setStep(step - 1))} />
+      <ScreenHeader title={t(`reg.cat.${role}.title`)} onBack={() => (step === 0 ? router.back() : setStep(step - 1))} />
       <View style={styles.progress}>
         {STEPS.map((s, i) => <View key={s[0]} style={[styles.bar, i <= step && { backgroundColor: colors.brandPrimary }]} />)}
       </View>

@@ -9,6 +9,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { Btn, CenterLoader, EmptyState, ErrorBanner, Screen, ScreenHeader, Sheet, useToast } from "@/src/components/ui";
 import { useT } from "@/src/i18n";
+import { startCheckout } from "@/src/payments";
 import { ThemeColors, fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import type { Purchase, VisibilityPlan } from "@/src/types";
 
@@ -36,15 +37,7 @@ export default function Visibility() {
   });
 
   const purchase = useMutation({
-    mutationFn: (plan: VisibilityPlan) => api<Purchase>("/visibility/purchase", { method: "POST", body: { plan_id: plan.id } }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchases"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["my-products"] });
-      setSelected(null);
-      toast.show(t("visibility.purchased"));
-      refresh();
-    },
+    mutationFn: (plan: VisibilityPlan) => startCheckout("visibility", plan.id),
     onError: (e: Error) => toast.show(e.message, "error"),
   });
 
@@ -108,7 +101,7 @@ export default function Visibility() {
       <Sheet visible={!!selected} onClose={() => setSelected(null)} title={selected ? (lang === "en" ? selected.name_en : selected.name) : ""}>
         {selected && (
           <View>
-            <Text style={styles.sheetPrice}>€{selected.price.toFixed(2)} — {t("visibility.simulatedNote")}</Text>
+            <Text style={styles.sheetPrice}>€{selected.price.toFixed(2)} — {t("common.language") === "en" ? "secure card payment" : "pagamento sicuro con carta"}</Text>
             <Btn
               title={t("checkout.pay")}
               size="lg"

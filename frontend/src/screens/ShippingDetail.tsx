@@ -11,6 +11,36 @@ import { Badge, Btn, CenterLoader, ErrorBanner, Field, Input, Screen, ScreenHead
 import { useT } from "@/src/i18n";
 import { ThemeColors, fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import type { ShippingRequest } from "@/src/types";
+import { ESCROW_LABELS, escrowTone, startCheckout } from "@/src/payments";
+
+/** Transport payment (escrow until proof of delivery) + POD details. */
+function PaymentCard({ req, isCreator }: { req: ShippingRequest; isCreator: boolean }) {
+  const { L } = useT();
+  const toast = useToast();
+  const styles = useStyles();
+  const pay = useMutation({ mutationFn: () => startCheckout("shipment", req.id), onError: (e: Error) => toast.show(e.message, "error") });
+  const quote = req.quotes.find((q) => q.id === req.selected_quote_id);
+  if (!req.carrier_id || !quote) return null;
+  const fee = req.commercial_snapshot?.producer_fee ?? 0;
+  const total = quote.price + fee;
+  return (
+    <View style={styles.sectionCard} testID="shipping-payment">
+      <View style={styles.payRow}>
+        <Text style={styles.sectionTitle}>{L("Pagamento trasporto", "Transport payment")}</Text>
+        {req.escrow ? <Badge label={L(...(ESCROW_LABELS[req.escrow.status] ?? [req.escrow.status, req.escrow.status]))} tone={escrowTone(req.escrow.status) as any} /> : <Badge label={L("Da pagare", "To pay")} tone="warning" />}
+      </View>
+      <Text style={styles.meta}>{L(`Vettore €${quote.price.toFixed(2)}`, `Carrier €${quote.price.toFixed(2)}`)}{fee > 0 ? L(` + commissione €${fee.toFixed(2)}`, ` + fee €${fee.toFixed(2)}`) : ""} = €{total.toFixed(2)}</Text>
+      {req.pod ? (
+        <Text style={styles.payNote} testID="shipping-pod">{L(`Consegnato il ${new Date(req.pod.at).toLocaleDateString("it-IT")} · ricevuto da ${req.pod.recipient}`, `Delivered ${new Date(req.pod.at).toLocaleDateString("en-GB")} · received by ${req.pod.recipient}`)}</Text>
+      ) : (
+        <Text style={styles.payNote}>{L("I soldi restano in garanzia e vanno al vettore solo con la prova di consegna.", "Funds are held and paid to the carrier only on proof of delivery.")}</Text>
+      )}
+      {isCreator && !req.escrow && (
+        <Btn title={L("Paga trasporto", "Pay transport")} icon="card" testID="shipping-pay-button" loading={pay.isPending} onPress={() => pay.mutate()} style={{ marginTop: spacing.md }} />
+      )}
+    </View>
+  );
+}
 
 export default function ShippingDetail() {
   const { colors } = useTheme();
@@ -160,6 +190,8 @@ export default function ShippingDetail() {
               ))
           )}
         </View>
+
+        <PaymentCard req={req} isCreator={req.creator_id === user?.id} />
       </View>
 
       {user?.role === "logistics" && (
@@ -194,6 +226,8 @@ export default function ShippingDetail() {
 }
 
 const useStyles = makeStyles((colors: ThemeColors) => ({
+  payRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  payNote: { fontFamily: fonts.text, fontSize: 12, color: colors.muted, marginTop: spacing.sm, lineHeight: 17 },
   card: { padding: spacing.lg, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.divider, marginHorizontal: spacing.lg },
   routeRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md, flexWrap: "wrap" },
   routeBadge: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surfaceTertiary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 4, gap: 4 },

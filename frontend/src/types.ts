@@ -4,9 +4,12 @@ export type Role =
   | "business"
   | "collaborator"
   | "logistics"
+  | "reseller"
   | "admin";
 
 export interface User {
+  verification_status?: "draft" | "pending" | "approved" | "rejected" | "suspended" | null;
+  totp_enabled?: boolean;
   id: string;
   email: string;
   name: string;
@@ -419,6 +422,16 @@ export interface Order {
   phone: string;
   notes?: string | null;
   created_at: string;
+  escrow?: Escrow;
+  dispute?: { reason: string; opened_at: string } | null;
+}
+
+export interface Escrow {
+  status: "held" | "disputed" | "released" | "refunded";
+  amount: number;
+  held_at?: string;
+  auto_release_at?: string;
+  released_at?: string;
 }
 
 export interface B2BMessage {
@@ -530,6 +543,10 @@ export interface ShippingRequest {
   quotes: Quote[];
   created_at: string;
   can_view_quotes?: boolean;
+  selected_quote_id?: string | null;
+  escrow?: Escrow;
+  pod?: { recipient: string; at: string; by: string; note?: string | null } | null;
+  commercial_snapshot?: { producer_fee?: number } | null;
 }
 
 export interface VisibilityPlan {

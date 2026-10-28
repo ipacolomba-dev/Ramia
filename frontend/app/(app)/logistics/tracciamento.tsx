@@ -29,10 +29,11 @@ export default function Tracking() {
   const [status, setStatus] = useState<TrackingEvent["status"]>("in_transit");
   const [location, setLocation] = useState("");
   const [note, setNote] = useState("");
+  const [recipient, setRecipient] = useState("");
 
   const add = useMutation({
-    mutationFn: () => api(`/logistics/requests/${target!.id}/tracking`, { method: "POST", body: { status, location: location || null, note: note || null } }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tracking"] }); setTarget(null); setLocation(""); setNote(""); toast.show(t("toast.saved")); },
+    mutationFn: () => api(`/logistics/requests/${target!.id}/tracking`, { method: "POST", body: { status, location: location || null, note: note || null, pod_recipient: status === "delivered" ? recipient : null } }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tracking"] }); qc.invalidateQueries({ queryKey: ["payouts"] }); setTarget(null); setLocation(""); setNote(""); setRecipient(""); toast.show(t("toast.saved")); },
     onError: (e: Error) => toast.show(e.message, "error"),
   });
   const lbl = (s: string) => L(...(LABELS[s] ?? [s, s]));
@@ -62,7 +63,7 @@ export default function Tracking() {
                   </View>
                 </View>
               ))}
-              {user?.role === "logistics" && s.is_carrier && (
+              {user?.role === "logistics" && s.is_carrier && s.status !== "delivered" && (
                 <Btn title={L("Aggiorna stato", "Update status")} size="sm" variant="outline" icon="add" testID={`track-update-${s.id}`} onPress={() => setTarget(s)} style={{ marginTop: spacing.md }} />
               )}
             </Card>
@@ -74,7 +75,12 @@ export default function Tracking() {
         </View>
         <Field label={L("Posizione", "Location")}><Input testID="track-location" value={location} onChangeText={setLocation} placeholder="Villa San Giovanni" /></Field>
         <Field label={L("Nota", "Note")}><Input testID="track-note" value={note} onChangeText={setNote} /></Field>
-        <Btn title={t("common.save")} testID="track-submit" loading={add.isPending} onPress={() => add.mutate()} />
+        {status === "delivered" && (
+          <Field label={L("Prova di consegna: chi ha ricevuto la merce", "Proof of delivery: received by")}>
+            <Input testID="track-pod-recipient" value={recipient} onChangeText={setRecipient} placeholder="Mario Rossi" />
+          </Field>
+        )}
+        <Btn title={t("common.save")} testID="track-submit" loading={add.isPending} onPress={() => (status === "delivered" && !recipient.trim() ? toast.show(L("Indica chi ha ricevuto la merce", "Enter who received the goods"), "error") : add.mutate())} />
       </Sheet>
     </Screen>
   );

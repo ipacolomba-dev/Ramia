@@ -12,12 +12,15 @@ from pydantic import BaseModel, Field
 
 from db import db
 from models import now_utc
+from core.audit import audit
+from core.matches import register_match
+from core.permissions import require_perm
+from core.rules import get_active_rules, snapshot_for
 from security import bearer, current_user, require_approved_roles, require_roles, user_from_token
 from storage import APP_NAME, get_object, put_object
 
 router = APIRouter(tags=["platform"])
 
-COMMISSION_SALES = 0.05
 
 
 def _clean(doc: dict) -> dict:
@@ -87,16 +90,20 @@ async def delete_lot(lot_id: str, user: dict = Depends(require_roles("producer")
 
 # ----------------------------- Producer orders & earnings -----------------------------
 
+PAID_ORDER = {"status": {"$nin": ["awaiting_payment", "cancelled", "refunded"]}}
+
+
 @router.get("/orders/received")
 async def received_orders(user: dict = Depends(require_roles("producer"))):
     uid = str(user["_id"])
-    docs = await db.orders.find({"items.producer_id": uid}).sort("created_at", -1).to_list(300)
+    docs = await db.orders.find({"items.producer_id": uid, **PAID_ORDER}).sort("created_at", -1).to_list(300)
     out = []
     for d in docs:
         mine = [it for it in d.get("items", []) if it.get("producer_id") == uid]
         out.append({
             "id": d["_id"], "created_at": d["created_at"].isoformat() if isinstance(d.get("created_at"), datetime) else d.get("created_at"),
             "customer_name": d.get("user_name", ""), "city": d.get("city"), "status": d.get("status", "paid"),
+            "escrow_status": (d.get("escrow") or {}).get("status"),
             "items": mine, "subtotal": round(sum(i["price"] * i["qty"] for i in mine), 2),
         })
     return out
@@ -107,7 +114,7 @@ async def producer_earnings(user: dict = Depends(require_roles("producer"))):
     uid = str(user["_id"])
     monthly: dict = {}
     orders_total = 0.0
-    async for o in db.orders.find({"items.producer_id": uid}):
+    async for o in db.orders.find({"items.producer_id": uid, **PAID_ORDER}):
         amount = sum(i["price"] * i["qty"] for i in o.get("items", []) if i.get("producer_id") == uid)
         orders_total += amount
         created = o.get("created_at")
@@ -117,12 +124,24 @@ async def producer_earnings(user: dict = Depends(require_roles("producer"))):
     async for a in db.agreements.find({"status": "accepted", "producer_id": uid}):
         b2b_total += float(a.get("price") or 0) * float(a.get("qty") or 0)
     gross = orders_total + b2b_total
-    commission = round(gross * COMMISSION_SALES, 2)
+    # producer fee read from each order/agreement snapshot; legacy records use active DB rules
+    rules = await get_active_rules()
+    rate = rules["services"]["mediated_sale"]["producer_pct"] / 100
+    commission = 0.0
+    async for o in db.orders.find({"items.producer_id": uid, **PAID_ORDER}):
+        mine = sum(i["price"] * i["qty"] for i in o.get("items", []) if i.get("producer_id") == uid)
+        snap = o.get("commercial_snapshot")
+        base = float((snap or {}).get("base_amount") or 0) or mine
+        commission += float(snap["producer_fee"]) * (mine / base) if snap and base else mine * rate
+    async for a in db.agreements.find({"status": "accepted", "producer_id": uid}):
+        snap = a.get("commercial_snapshot")
+        commission += float(snap["producer_fee"]) if snap else float(a.get("price") or 0) * float(a.get("qty") or 0) * rate
+    commission = round(commission, 2)
     return {
         "orders_total": round(orders_total, 2), "b2b_total": round(b2b_total, 2), "gross": round(gross, 2),
-        "commission": commission, "net": round(gross - commission, 2), "rate": COMMISSION_SALES,
+        "commission": commission, "net": round(gross - commission, 2), "rate": rate,
         "monthly": [{"month": k, "amount": round(v, 2)} for k, v in sorted(monthly.items(), reverse=True)],
-        "payment_note": "Pagamenti simulati: nessun movimento di denaro reale",
+        "payment_note": "Pagamenti con carta: i fondi restano in garanzia fino alla consegna",
     }
 
 
@@ -145,7 +164,7 @@ class RfqResponseIn(BaseModel):
 
 @router.get("/rfq")
 async def list_rfq(user: dict = Depends(current_user)):
-    if user["role"] == "business":
+    if user["role"] in ("business", "reseller"):
         q = {"buyer_id": str(user["_id"])}
     elif user["role"] in ("producer", "admin"):
         q = {} if user["role"] == "admin" else {"status": "open"}
@@ -164,10 +183,7 @@ async def list_rfq(user: dict = Depends(current_user)):
 
 
 @router.post("/rfq")
-async def create_rfq(body: RfqIn, user: dict = Depends(require_approved_roles("business"))):
-    if (user.get("buyer_plan") or "free") == "free":
-        if await db.rfqs.count_documents({"buyer_id": str(user["_id"]), "status": "open"}) >= 3:
-            raise HTTPException(status_code=422, detail="Piano Base: massimo 3 richieste aperte. Chiudine una o passa a Pro")
+async def create_rfq(body: RfqIn, user: dict = Depends(require_perm("rfq:create", approved=True))):
     doc = {"_id": str(uuid.uuid4()), **body.model_dump(), "buyer_id": str(user["_id"]), "buyer_name": _name(user),
            "status": "open", "responses": [], "created_at": now_utc()}
     await db.rfqs.insert_one(doc)
@@ -179,9 +195,9 @@ async def _rfq_for(rfq_id: str, user: dict) -> dict:
     if not d:
         raise HTTPException(status_code=404, detail="Richiesta non trovata")
     uid = str(user["_id"])
-    if user["role"] == "business" and d["buyer_id"] != uid:
+    if user["role"] in ("business", "reseller") and d["buyer_id"] != uid:
         raise HTTPException(status_code=404, detail="Richiesta non trovata")
-    if user["role"] not in ("business", "producer", "admin"):
+    if user["role"] not in ("business", "reseller", "producer", "admin"):
         raise HTTPException(status_code=403, detail="Ruolo non autorizzato")
     return d
 
@@ -203,52 +219,16 @@ async def respond_rfq(rfq_id: str, body: RfqResponseIn, user: dict = Depends(req
     resp = {"id": str(uuid.uuid4()), "producer_id": str(user["_id"]), "producer_name": _name(user),
             **body.model_dump(), "created_at": now_utc().isoformat()}
     await db.rfqs.update_one({"_id": rfq_id}, {"$push": {"responses": resp}})
+    await register_match(str(user["_id"]), d["buyer_id"], "rfq_response", rfq_id)
     return await get_rfq(rfq_id, user)
 
 
 @router.patch("/rfq/{rfq_id}/close")
-async def close_rfq(rfq_id: str, user: dict = Depends(require_roles("business"))):
+async def close_rfq(rfq_id: str, user: dict = Depends(require_perm("rfq:create"))):
     res = await db.rfqs.update_one({"_id": rfq_id, "buyer_id": str(user["_id"])}, {"$set": {"status": "closed"}})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Richiesta non trovata")
     return {"ok": True}
-
-
-# ----------------------------- Buyer plans (simulated) -----------------------------
-
-BUYER_PLANS = [
-    {"id": "free", "price": 0.0, "name": "Base", "name_en": "Basic",
-     "perks_it": ["Accesso al mercato", "Fino a 3 richieste aperte"], "perks_en": ["Marketplace access", "Up to 3 open requests"]},
-    {"id": "pro", "price": 39.0, "name": "Pro", "name_en": "Pro",
-     "perks_it": ["Richieste illimitate", "Analisi di mercato AI", "Priorità nelle trattative"],
-     "perks_en": ["Unlimited requests", "AI market analysis", "Priority in negotiations"]},
-    {"id": "enterprise", "price": 149.0, "name": "Enterprise", "name_en": "Enterprise",
-     "perks_it": ["Tutto Pro", "Curatore dedicato", "Report export mensile"],
-     "perks_en": ["Everything in Pro", "Dedicated curator", "Monthly export report"]},
-]
-
-
-class PlanSubscribeIn(BaseModel):
-    plan_id: str
-
-
-@router.get("/buyer/plans")
-async def buyer_plans(user: dict = Depends(current_user)):
-    return {"plans": BUYER_PLANS, "current": user.get("buyer_plan") or "free", "until": (
-        user["buyer_plan_until"].isoformat() if isinstance(user.get("buyer_plan_until"), datetime) else None)}
-
-
-@router.post("/buyer/plans/subscribe")
-async def subscribe_plan(body: PlanSubscribeIn, user: dict = Depends(require_roles("business", "consumer"))):
-    plan = next((p for p in BUYER_PLANS if p["id"] == body.plan_id), None)
-    if not plan:
-        raise HTTPException(status_code=404, detail="Piano non trovato")
-    until = now_utc() + timedelta(days=30) if plan["price"] > 0 else None
-    await db.users.update_one({"_id": user["_id"]}, {"$set": {"buyer_plan": plan["id"], "buyer_plan_until": until}})
-    await db.purchases.insert_one({"_id": str(uuid.uuid4()), "user_id": str(user["_id"]), "plan_id": plan["id"],
-                                   "plan_name": plan["name"], "price": plan["price"], "payment": "simulated",
-                                   "kind": "buyer_plan", "created_at": now_utc()})
-    return {"ok": True, "current": plan["id"], "until": until.isoformat() if until else None}
 
 
 # ----------------------------- Logistics quotes & tracking -----------------------------
@@ -283,7 +263,11 @@ async def select_quote(req_id: str, body: SelectQuoteIn, user: dict = Depends(cu
         raise HTTPException(status_code=404, detail="Preventivo non trovato")
     ev = {"id": str(uuid.uuid4()), "status": "assigned", "location": None, "note": quote.get("company_name"),
           "by": _name(user), "at": now_utc().isoformat()}
+    snapshot = await snapshot_for("transport", float(quote.get("price") or 0))
+    if user["role"] != "producer":  # the transport mediation fee is charged only to the producer who books
+        snapshot = {**snapshot, "producer_fee": 0.0, "platform_revenue": snapshot["buyer_fee"], "note": "Prenotazione non da produttore"}
     res = await db.shipping_requests.update_one({"_id": req_id, "carrier_id": None}, {"$set": {
+        "commercial_snapshot": snapshot, "booked_by_role": user["role"],
         "carrier_id": quote["company_id"], "selected_quote_id": quote["id"], "status": "assigned",
         "tracking_status": "assigned"}, "$push": {"tracking": ev}})
     if res.modified_count == 0:
@@ -295,6 +279,8 @@ class TrackingIn(BaseModel):
     status: Literal["assigned", "picked_up", "in_transit", "delivered", "issue"]
     location: Optional[str] = Field(None, max_length=200)
     note: Optional[str] = Field(None, max_length=500)
+    pod_recipient: Optional[str] = Field(None, max_length=120)  # proof of delivery: who signed
+    pod_photo_url: Optional[str] = Field(None, max_length=500)
 
 
 @router.get("/logistics/tracking")
@@ -318,10 +304,19 @@ async def add_tracking(req_id: str, body: TrackingIn, user: dict = Depends(requi
     d = await db.shipping_requests.find_one({"_id": req_id, "carrier_id": uid})
     if not d:
         raise HTTPException(status_code=403, detail="Solo il trasportatore scelto dal cliente può aggiornare il tracciamento")
+    if d.get("tracking_status") == "delivered":
+        raise HTTPException(status_code=422, detail="Spedizione già consegnata")
+    if body.status == "delivered" and not (body.pod_recipient or "").strip():
+        raise HTTPException(status_code=422, detail="Per la consegna serve la prova: nome di chi ha ricevuto la merce")
     ev = {"id": str(uuid.uuid4()), **body.model_dump(), "by": _name(user), "at": now_utc().isoformat()}
-    await db.shipping_requests.update_one(
-        {"_id": req_id}, {"$push": {"tracking": ev}, "$set": {"tracking_status": body.status}}
-    )
+    upd = {"tracking_status": body.status}
+    if body.status == "delivered":
+        upd["pod"] = {"recipient": body.pod_recipient.strip(), "photo_url": body.pod_photo_url, "note": body.note,
+                      "at": ev["at"], "by": _name(user)}
+    await db.shipping_requests.update_one({"_id": req_id}, {"$push": {"tracking": ev}, "$set": upd})
+    if body.status == "delivered":
+        from routers.payments import release_shipment
+        await release_shipment(req_id, "proof_of_delivery")
     return ev
 
 
@@ -411,9 +406,11 @@ class SuspendIn(BaseModel):
 async def suspend_user(user_id: str, body: SuspendIn, user: dict = Depends(require_roles("admin"))):
     if user_id == str(user["_id"]):
         raise HTTPException(status_code=422, detail="Non puoi sospendere te stesso")
-    res = await db.users.update_one({"_id": user_id}, {"$set": {"suspended": body.suspended}})
-    if res.matched_count == 0:
+    before = await db.users.find_one({"_id": user_id}, {"suspended": 1, "email": 1})
+    if not before:
         raise HTTPException(status_code=404, detail="Utente non trovato")
+    await db.users.update_one({"_id": user_id}, {"$set": {"suspended": body.suspended}})
+    await audit(user, "suspend" if body.suspended else "reactivate", "user", user_id, before=before, after={"suspended": body.suspended})
     return {"ok": True}
 
 
@@ -425,9 +422,11 @@ async def moderation_offers(user: dict = Depends(require_roles("admin"))):
 
 @router.patch("/admin/moderation/offers/{offer_id}/close")
 async def moderation_close_offer(offer_id: str, user: dict = Depends(require_roles("admin"))):
-    res = await db.b2b_offers.update_one({"_id": offer_id}, {"$set": {"status": "closed", "moderated": True}})
-    if res.matched_count == 0:
+    before = await db.b2b_offers.find_one({"_id": offer_id}, {"status": 1, "title": 1})
+    if not before:
         raise HTTPException(status_code=404, detail="Offerta non trovata")
+    await db.b2b_offers.update_one({"_id": offer_id}, {"$set": {"status": "closed", "moderated": True}})
+    await audit(user, "close", "b2b_offer", offer_id, before=before, after={"status": "closed"})
     return {"ok": True}
 
 
@@ -443,7 +442,7 @@ DEFAULT_CATEGORIES = [
 async def seed_categories():
     if await db.categories.count_documents({}) == 0:
         await db.categories.insert_many([
-            {"_id": slug, "name": it, "name_en": en, "order": i, "created_at": now_utc()}
+            {"_id": slug, "name": it, "name_en": en, "order": i, "created_at": now_utc(), "deleted_at": None}
             for i, (slug, it, en) in enumerate(DEFAULT_CATEGORIES)
         ])
 
@@ -456,18 +455,20 @@ class CategoryIn(BaseModel):
 
 @router.get("/categories")
 async def list_categories():
-    docs = await db.categories.find({}).sort("order", 1).to_list(200)
+    docs = await db.categories.find({"deleted_at": None}).sort("order", 1).to_list(200)
     return [{"slug": d["_id"], "name": d["name"], "name_en": d.get("name_en"),
              "products": await db.products.count_documents({"category": d["_id"], "deleted_at": None})} for d in docs]
 
 
 @router.post("/categories")
 async def create_category(body: CategoryIn, user: dict = Depends(require_roles("admin"))):
-    if await db.categories.find_one({"_id": body.slug}):
+    existing = await db.categories.find_one({"_id": body.slug})
+    if existing and existing.get("deleted_at") is None:
         raise HTTPException(status_code=409, detail="Categoria già esistente")
     count = await db.categories.count_documents({})
-    await db.categories.insert_one({"_id": body.slug, "name": body.name, "name_en": body.name_en,
-                                    "order": count, "created_at": now_utc()})
+    doc = {"name": body.name, "name_en": body.name_en, "order": count, "created_at": now_utc(), "deleted_at": None}
+    await db.categories.update_one({"_id": body.slug}, {"$set": doc}, upsert=True)
+    await audit(user, "create", "category", body.slug, before=existing, after=doc)
     return {"ok": True}
 
 
@@ -475,16 +476,18 @@ async def create_category(body: CategoryIn, user: dict = Depends(require_roles("
 async def delete_category(slug: str, user: dict = Depends(require_roles("admin"))):
     if await db.products.count_documents({"category": slug, "deleted_at": None}):
         raise HTTPException(status_code=422, detail="Categoria in uso da prodotti: non eliminabile")
-    res = await db.categories.delete_one({"_id": slug})
-    if res.deleted_count == 0:
+    before = await db.categories.find_one({"_id": slug, "deleted_at": None})
+    if not before:
         raise HTTPException(status_code=404, detail="Categoria non trovata")
+    await db.categories.update_one({"_id": slug}, {"$set": {"deleted_at": now_utc()}})
+    await audit(user, "soft_delete", "category", slug, before=before, after={"deleted_at": True})
     return {"ok": True}
 
 
 # ----------------------------- Buyer analytics -----------------------------
 
 @router.get("/buyer/analytics")
-async def buyer_analytics(user: dict = Depends(require_roles("business", "consumer", "admin"))):
+async def buyer_analytics(user: dict = Depends(require_perm("analytics:view"))):
     uid = str(user["_id"])
     spend, orders_count = 0.0, 0
     by_producer: dict = {}

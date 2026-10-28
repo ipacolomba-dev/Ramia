@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import EmailStr, ValidationError
+from pydantic import BaseModel, EmailStr, Field, ValidationError
 
 from db import db
+from core import tokens
 from models import BuyerProfileIn, LocaleIn, LoginIn, ProducerProfileIn, RegisterIn, now_utc
 from security import current_user, hash_password, make_token, verify_password, DUMMY_HASH
 
@@ -17,11 +18,12 @@ PUBLIC_FIELDS = (
     "approved", "bio", "bio_en", "website", "phone", "city",
     "logistics_service", "certifications", "awards", "fairs", "billing",
     "email_verified", "marketing_consent",
+    "verification_status", "totp_enabled",
 )
 
 
 # Roles that operate immediately; others wait for owner approval.
-AUTO_APPROVED_ROLES = ("consumer", "producer", "admin")
+AUTO_APPROVED_ROLES = ("consumer", "admin")
 
 
 def public_user(u: dict) -> dict:
@@ -70,7 +72,7 @@ def _normalize_profile(body: RegisterIn) -> tuple[dict, dict]:
             derived["phone"] = p.company.phone
         if p.legal_address.city:
             derived["city"] = p.legal_address.city
-    elif body.role == "business" and body.profile:
+    elif body.role in ("business", "reseller") and body.profile:
         try:
             b = BuyerProfileIn(**body.profile)
         except ValidationError as e:
@@ -110,6 +112,8 @@ async def _register_user(body: RegisterIn):
         "fleet_info": body.fleet_info,
         "featured_until": None,
         "approved": body.role in AUTO_APPROVED_ROLES,
+        # B2B features unlock only when the company verification reaches "approved"
+        "verification_status": None if body.role in AUTO_APPROVED_ROLES else "draft",
         "email_verified": False,
         "consents": consents,
         "marketing_consent": consents["marketing"]["accepted"],
@@ -126,7 +130,9 @@ async def _register_user(body: RegisterIn):
 @router.post("/register")
 async def register(body: RegisterIn):
     user = await _register_user(body)
-    return {"access_token": make_token(user), "user": public_user(user)}
+    from routers.accounts import send_verification
+    await send_verification(user)
+    return {"access_token": make_token(user), "refresh_token": await tokens.issue(str(user["_id"])), "token_type": "bearer", "user": public_user(user)}
 
 
 @router.post("/login")
@@ -140,7 +146,10 @@ async def login(body: LoginIn):
         raise HTTPException(status_code=401, detail="Credenziali non valide")
     if user.get("suspended"):
         raise HTTPException(status_code=403, detail="Account sospeso: contatta l'amministratore")
-    return {"access_token": make_token(user), "user": public_user(user)}
+    if user.get("totp_enabled"):
+        from routers.accounts import two_fa_challenge
+        return {"two_factor_required": True, "challenge": await two_fa_challenge(user)}
+    return {"access_token": make_token(user), "refresh_token": await tokens.issue(str(user["_id"])), "token_type": "bearer", "user": public_user(user)}
 
 
 @router.get("/me")
@@ -163,4 +172,33 @@ async def change_password(body: dict, user: dict = Depends(current_user)):
     await db.users.update_one(
         {"_id": user["_id"]}, {"$set": {"password_hash": hash_password(new_pwd)}}
     )
+    return {"ok": True}
+
+
+class RefreshIn(BaseModel):
+    refresh_token: str = Field(min_length=20, max_length=200)
+
+
+@router.post("/refresh")
+async def refresh_token(body: RefreshIn):
+    """Rotates the refresh token (one-time use) and issues a new access token."""
+    res = await tokens.rotate(body.refresh_token)
+    if not res:
+        raise HTTPException(status_code=401, detail="Sessione scaduta, accedi di nuovo")
+    user_id, new_refresh = res
+    user = await db.users.find_one({"_id": user_id})
+    if not user or user.get("suspended"):
+        raise HTTPException(status_code=401, detail="Sessione non valida")
+    return {"access_token": make_token(user), "refresh_token": new_refresh, "token_type": "bearer", "user": public_user(user)}
+
+
+@router.post("/logout")
+async def logout(body: RefreshIn):
+    await tokens.revoke(body.refresh_token)
+    return {"ok": True}
+
+
+@router.post("/logout-all")
+async def logout_all(user: dict = Depends(current_user)):
+    await tokens.revoke_all(str(user["_id"]))
     return {"ok": True}

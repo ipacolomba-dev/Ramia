@@ -5,8 +5,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from db import client, db
-from routers import admin, advisor, auth, b2b, imports, logistics, market, platform, profiles, push, regulatory, trade, uploads
-from seed import seed
+from core import matches as matches_core, permissions as perms_core, rules as rules_core, tokens as tokens_core
+from routers import accounts, admin, advisor, auth, b2b, governance, imports, logistics, market, payments, platform, profiles, push, rates, regulatory, trade, uploads
+from seed import seed, seed_extras
 from seed_regulatory import seed_regulatory
 from storage import init_storage
 
@@ -23,15 +24,34 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Storage init rimandato: %s", exc)
     await seed()
+    await seed_extras()
     await seed_regulatory()
     await platform.seed_categories()
+    await rules_core.seed_rules()
+    await perms_core.seed_permissions()
+    await governance.seed_visibility()
+    await tokens_core.ensure_indexes()
+    await accounts.seed_accounts()
+    accounts.start_expiry_job()
+    await matches_core.ensure_indexes()
+    await matches_core.backfill()
+    await rates.seed_rate_cards()
+    payments.start_auto_release_job()
     await trade.start_recovery()
     await regulatory.start_change_detector()
     yield
     client.close()
 
 
-app = FastAPI(title="Sapori di Sicilia API", lifespan=lifespan)
+app = FastAPI(
+    title="'Ra mia API",
+    description="Marketplace di mediazione agroalimentare. Ogni affare salva uno snapshot immutabile delle regole commerciali.",
+    version="1.0.0",
+    lifespan=lifespan,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,6 +75,10 @@ app.include_router(trade.router, prefix=api_router_prefix)
 app.include_router(regulatory.router, prefix=api_router_prefix)
 app.include_router(push.router, prefix=api_router_prefix)
 app.include_router(platform.router, prefix=api_router_prefix)
+app.include_router(governance.router, prefix=api_router_prefix)
+app.include_router(accounts.router, prefix=api_router_prefix)
+app.include_router(payments.router, prefix=api_router_prefix)
+app.include_router(rates.router, prefix=api_router_prefix)
 
 
 @app.get("/api")

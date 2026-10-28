@@ -27,5 +27,5 @@ export function useAreaBase(): string {
 
 /** Where regulatory alerts live for a role. */
 export function alertsRouteFor(role?: Role | string | null): string {
-  return role === "business" || role === "consumer" ? "/buyer/trattative/alerts" : "/producer/export/alerts";
+  return role === "business" || role === "consumer" || role === "reseller" ? "/buyer/trattative/alerts" : "/producer/export/alerts";
 }

@@ -8,6 +8,7 @@ import Ionicons from "@react-native-vector-icons/ionicons";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { LinkRow } from "@/src/components/blocks";
+import { VerificationBanner } from "@/src/components/VerificationBanner";
 import { Badge, Btn, CenterLoader, EmptyState, ErrorBanner, Screen, ScreenHeader, useToast } from "@/src/components/ui";
 import { useT } from "@/src/i18n";
 import { ThemeColors, fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -113,6 +114,8 @@ export default function ProducerDashboard() {
         </View>
 
         <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.lg }}>
+          <VerificationBanner />
+          <LinkRow icon="hand-left" label={L("Affari fuori piattaforma", "Off-platform deals")} testID="producer-link-declarations" onPress={() => router.push("/producer/dichiarazioni")} />
           <LinkRow icon="briefcase" label={L("Offerte B2B e richieste", "B2B offers & requests")} testID="producer-link-offers" onPress={() => router.push("/producer/offerte")} />
           <LinkRow icon="barcode" label={L("Lotti di produzione", "Production lots")} testID="producer-link-lots" onPress={() => router.push("/producer/lotti")} />
           <LinkRow icon="document-text" label={L("Etichette", "Labels")} testID="producer-link-labels" onPress={() => router.push("/producer/etichette")} />

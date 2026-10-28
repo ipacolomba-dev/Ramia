@@ -4,7 +4,8 @@ import React from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import { api } from "@/src/api";
-import { Card, Muted, Notice, Section, Stat, StatRow, fmtEur } from "@/src/components/blocks";
+import { Card, Muted, Section, Stat, StatRow, fmtEur } from "@/src/components/blocks";
+import { Payouts } from "@/src/screens/Payouts";
 import { CenterLoader, ErrorBanner, Screen, ScreenHeader } from "@/src/components/ui";
 import { useT } from "@/src/i18n";
 import { ThemeColors, fonts, makeStyles, spacing } from "@/src/theme";
@@ -39,7 +40,7 @@ export default function ProducerEarningsScreen() {
                 <Text style={styles.amount}>{fmtEur(m.amount)}</Text>
               </View>
             ))}
-            <Notice text={L("Pagamenti simulati: al momento non avviene alcun movimento di denaro reale.", "Simulated payments: no real money moves yet.")} />
+            <Payouts />
           </>
         )}
       </ScrollView>

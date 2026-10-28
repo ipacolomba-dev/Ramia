@@ -47,7 +47,8 @@ class TestProducerMoney:
         r = requests.get(f"{API}/producer/earnings", headers=H(tokens, "producer"))
         assert r.status_code == 200
         d = r.json()
-        assert abs(d["net"] - (d["gross"] - d["commission"])) < 0.02 and d["rate"] == 0.05
+        rules = requests.get(f"{API}/business-rules/active", headers=H(tokens, "producer")).json()
+        assert abs(d["net"] - (d["gross"] - d["commission"])) < 0.02 and d["rate"] == rules["services"]["mediated_sale"]["producer_pct"] / 100
 
 
 # ---------- RFQ ----------
@@ -87,15 +88,9 @@ class TestRfq:
 
 # ---------- Buyer plans / analytics ----------
 class TestBuyer:
-    def test_plans_subscribe(self, tokens):
-        r = requests.get(f"{API}/buyer/plans", headers=H(tokens, "business"))
-        assert r.status_code == 200 and len(r.json()["plans"]) == 3
-        s = requests.post(f"{API}/buyer/plans/subscribe", json={"plan_id": "pro"}, headers=H(tokens, "business"))
-        assert s.status_code == 200 and s.json()["current"] == "pro" and s.json()["until"]
-        assert requests.get(f"{API}/buyer/plans", headers=H(tokens, "business")).json()["current"] == "pro"
-        assert requests.post(f"{API}/buyer/plans/subscribe", json={"plan_id": "xxx"}, headers=H(tokens, "business")).status_code == 404
-        assert requests.post(f"{API}/buyer/plans/subscribe", json={"plan_id": "pro"}, headers=H(tokens, "producer")).status_code == 403
-        requests.post(f"{API}/buyer/plans/subscribe", json={"plan_id": "free"}, headers=H(tokens, "business"))
+    def test_plans_removed(self, tokens):
+        # 'Ra mia: free access, no subscriptions
+        assert requests.get(f"{API}/buyer/plans", headers=H(tokens, "business")).status_code == 404
 
     def test_analytics(self, tokens):
         r = requests.get(f"{API}/buyer/analytics", headers=H(tokens, "business"))

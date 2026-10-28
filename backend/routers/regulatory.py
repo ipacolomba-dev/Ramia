@@ -141,7 +141,7 @@ def detect_conflicts(reqs: list[dict]) -> list[dict]:
 async def kb_requirements_for(country: str, category: str | None, hs_code: str | None = None) -> dict:
     """Return verified+demo requirements relevant to (country, category) with source metadata,
     computed confidence and detected conflicts. Honest: empty when no source available."""
-    q: dict = {"country": {"$regex": f"^{country}$", "$options": "i"}, "active": True}
+    q: dict = {"country": {"$regex": f"^{re.escape(country)}$", "$options": "i"}, "active": True}
     docs = await db.reg_requirements.find(q).to_list(200)
     out = []
     source_ids = {d["source_id"] for d in docs if d.get("source_id")}
@@ -219,7 +219,7 @@ def _clean_alert(a: dict, read: bool = False) -> dict:
 async def _matching_monitor_producers(country: str, category: str | None) -> list[str]:
     """Producer ids monitoring this country (category-agnostic if the alert has no category,
     or if the monitor itself has no category)."""
-    q: dict = {"country": {"$regex": f"^{country}$", "$options": "i"}}
+    q: dict = {"country": {"$regex": f"^{re.escape(country)}$", "$options": "i"}}
     monitors = await db.reg_monitors.find(q).to_list(1000)
     ids = set()
     for m in monitors:
@@ -362,7 +362,7 @@ async def list_sources(user: dict = Depends(require_roles("admin")),
                        status: str | None = None):
     q: dict = {}
     if country:
-        q["country"] = {"$regex": f"^{country}$", "$options": "i"}
+        q["country"] = {"$regex": f"^{re.escape(country)}$", "$options": "i"}
     if reliability:
         q["reliability"] = reliability
     if status:
@@ -482,7 +482,7 @@ def _diff_versions(old: str, new: str) -> dict:
 
 @router.get("/documents")
 async def list_documents(user: dict = Depends(require_roles("admin")), country: str | None = None):
-    q = {"country": {"$regex": f"^{country}$", "$options": "i"}} if country else {}
+    q = {"country": {"$regex": f"^{re.escape(country)}$", "$options": "i"}} if country else {}
     docs = await db.reg_documents.find(q).sort("updated_at", -1).to_list(300)
     return [_clean(d) for d in docs]
 
@@ -534,9 +534,9 @@ async def list_requirements(user: dict = Depends(require_roles("admin")),
                             country: str | None = None, category: str | None = None):
     q: dict = {"active": True}
     if country:
-        q["country"] = {"$regex": f"^{country}$", "$options": "i"}
+        q["country"] = {"$regex": f"^{re.escape(country)}$", "$options": "i"}
     if category:
-        q["category"] = {"$regex": f"^{category}$", "$options": "i"}
+        q["category"] = {"$regex": f"^{re.escape(category)}$", "$options": "i"}
     docs = await db.reg_requirements.find(q).sort("created_at", -1).to_list(300)
     return [_clean(d) for d in docs]
 
@@ -574,7 +574,7 @@ async def create_monitor(body: MonitorIn, user: dict = Depends(require_roles("pr
             category = category or p.get("category")
             product_name = p.get("name")
     existing = await db.reg_monitors.find_one({
-        "producer_id": pid, "country": {"$regex": f"^{body.country}$", "$options": "i"},
+        "producer_id": pid, "country": {"$regex": f"^{re.escape(body.country)}$", "$options": "i"},
         "product_id": body.product_id,
     })
     if existing:
@@ -614,9 +614,9 @@ async def _alerts_for_producer(pid: str) -> list[dict]:
         return []
     ors = []
     for m in monitors:
-        clause: dict = {"country": {"$regex": f"^{m['country']}$", "$options": "i"}}
+        clause: dict = {"country": {"$regex": f"^{re.escape(m['country'])}$", "$options": "i"}}
         if m.get("category"):
-            clause["$or"] = [{"category": None}, {"category": {"$regex": f"^{m['category']}$", "$options": "i"}}]
+            clause["$or"] = [{"category": None}, {"category": {"$regex": f"^{re.escape(m['category'])}$", "$options": "i"}}]
         ors.append(clause)
     return await db.reg_alerts.find({"$or": ors}).sort("created_at", -1).to_list(200)
 

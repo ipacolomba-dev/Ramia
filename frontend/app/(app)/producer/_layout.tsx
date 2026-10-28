@@ -13,7 +13,7 @@ export default function ProducerLayout() {
         { name: "export", label: ["Export", "Export"], icon: "earth" },
         { name: "profilo", label: ["Profilo", "Profile"], icon: "person" },
       ]}
-      hidden={["azienda", "offerte", "lotti", "etichette", "visibilita", "incassi", "spedizioni"]}
+      hidden={["azienda", "offerte", "lotti", "etichette", "visibilita", "incassi", "spedizioni", "dichiarazioni"]}
     />
   );
 }

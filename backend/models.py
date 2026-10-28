@@ -11,7 +11,7 @@ def oid_validator(v):
 
 PyObjectId = Annotated[str, BeforeValidator(oid_validator)]
 
-Role = Literal["consumer", "producer", "business", "collaborator", "logistics"]
+Role = Literal["consumer", "producer", "business", "collaborator", "logistics", "reseller"]
 
 
 def now_utc() -> datetime:
@@ -229,11 +229,11 @@ class OrderItemIn(BaseModel):
 class OrderIn(BaseModel):
     items: list[OrderItemIn] = []
     package_id: Optional[str] = None
-    address: str
-    city: str
-    zip: str
-    phone: str
-    notes: Optional[str] = None
+    address: str = Field(min_length=3, max_length=300)
+    city: str = Field(min_length=2, max_length=120)
+    zip: str = Field(min_length=3, max_length=12)
+    phone: str = Field(min_length=6, max_length=30)
+    notes: Optional[str] = Field(None, max_length=1000)
 
 
 # ----------------------------- Visibility -----------------------------

@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 
+from core.audit import audit
+from core.permissions import APPROVAL_ROLES
+from core.rules import compute_snapshot, get_active_rules
 from db import db
 from models import AccountReviewIn
 from security import require_roles
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-COMMISSION_SALES = 0.05
-COMMISSION_LOGISTICS = 0.01
-COMMISSION_LABELS = 0.01
 
 
 @router.get("/stats")
@@ -22,7 +21,7 @@ async def stats(user: dict = Depends(require_roles("admin"))):
         "b2b_agreements": await db.agreements.count_documents({}),
         "shipping_requests": await db.shipping_requests.count_documents({}),
         "label_requests": await db.label_requests.count_documents({}),
-        "pending_accounts": await db.users.count_documents({"role": {"$in": ["business", "collaborator", "logistics"]}, "approved": False}),
+        "pending_accounts": await db.users.count_documents({"role": {"$in": list(APPROVAL_ROLES)}, "approved": False}),
     }
 
 
@@ -37,13 +36,15 @@ async def review_product(product_id: str, body: dict, user: dict = Depends(requi
     status = (body or {}).get("status")
     if status not in ("approved", "rejected"):
         raise HTTPException(status_code=422, detail="Stato non valido")
-    res = await db.products.update_one({"_id": product_id}, {"$set": {"status": status}})
-    if res.matched_count == 0:
+    before = await db.products.find_one({"_id": product_id}, {"status": 1, "name": 1})
+    if not before:
         raise HTTPException(status_code=404, detail="Prodotto non trovato")
+    await db.products.update_one({"_id": product_id}, {"$set": {"status": status}})
+    await audit(user, "review", "product", product_id, before=before, after={"status": status})
     return {"ok": True}
 
 
-PENDING_ROLES = ("business", "collaborator", "logistics")
+PENDING_ROLES = APPROVAL_ROLES
 
 
 @router.get("/accounts/pending")
@@ -70,55 +71,70 @@ async def pending_accounts(user: dict = Depends(require_roles("admin"))):
 @router.patch("/accounts/{account_id}/review")
 async def review_account(account_id: str, body: AccountReviewIn, user: dict = Depends(require_roles("admin"))):
     approved = body.action == "approve"
-    res = await db.users.update_one({"_id": account_id}, {"$set": {"approved": approved}})
-    if res.matched_count == 0:
+    before = await db.users.find_one({"_id": account_id}, {"approved": 1, "email": 1, "role": 1})
+    if not before:
         raise HTTPException(status_code=404, detail="Account non trovato")
+    await db.users.update_one({"_id": account_id}, {"$set": {"approved": approved}})
+    await audit(user, "review", "user", account_id, before=before, after={"approved": approved})
     return {"ok": True, "approved": approved}
+
+
+async def _revenue(coll, amount_of, service: str, rules: dict, query: dict | None = None):
+    """Sums platform revenue from stored snapshots; legacy records without snapshot are estimated with active rules."""
+    volume = revenue = estimated = 0.0
+    async for d in db[coll].find(query or {}):
+        snap = d.get("commercial_snapshot")
+        amount = amount_of(d)
+        if not amount:
+            continue
+        volume += amount
+        if snap:
+            revenue += float(snap.get("platform_revenue") or 0)
+        else:
+            est = compute_snapshot(rules, service, amount)["platform_revenue"]
+            revenue += est
+            estimated += est
+    return round(volume, 2), round(revenue, 2), round(estimated, 2)
 
 
 @router.get("/earnings")
 async def earnings(user: dict = Depends(require_roles("admin"))):
-    # Advertising: visibility packages purchased by producers
+    rules = await get_active_rules()
     advertising = 0.0
-    async for p in db.purchases.find({}, {"price": 1}):
+    async for p in db.purchases.find({"status": {"$ne": "pending"}}, {"price": 1}):
         advertising += float(p.get("price") or 0)
 
-    # Sales: consumer orders + accepted B2B agreements
-    sales_volume = 0.0
-    async for o in db.orders.find({}, {"total": 1}):
-        sales_volume += float(o.get("total") or 0)
-    async for a in db.agreements.find({"status": "accepted"}, {"price": 1, "qty": 1}):
-        sales_volume += float(a.get("price") or 0) * float(a.get("qty") or 0)
+    o_vol, o_rev, o_est = await _revenue("orders", lambda o: float(o.get("goods_total", o.get("total")) or 0), "mediated_sale", rules,
+                                         {"status": {"$nin": ["awaiting_payment", "cancelled", "refunded"]}})
+    a_vol, a_rev, a_est = await _revenue("agreements", lambda a: float(a.get("price") or 0) * float(a.get("qty") or 0),
+                                         "mediated_sale", rules, {"status": "accepted"})
+    i_vol, i_rev, _ = await _revenue("deal_declarations", lambda d: float(d.get("amount") or 0) if d.get("within_window") else 0,
+                                     "introduction", rules, {"deleted_at": None})
+    l_vol, l_rev, l_est = await _revenue(
+        "shipping_requests",
+        lambda s: float(next((q["price"] for q in s.get("quotes", []) if q.get("id") == s.get("selected_quote_id")), 0) or 0),
+        "transport", rules, {"selected_quote_id": {"$ne": None}})
+    lb_vol, lb_rev, lb_est = await _revenue(
+        "label_requests",
+        lambda r: float(next((o["price"] for o in r.get("offers", []) if o.get("status") == "accepted"), 0) or 0),
+        "labels", rules)
 
-    # Logistics: estimated on the best (lowest) quote per shipment request
-    logistics_volume = 0.0
-    async for s in db.shipping_requests.find({}, {"quotes": 1}):
-        quotes = s.get("quotes") or []
-        prices = [float(q.get("price") or 0) for q in quotes if q.get("price")]
-        if prices:
-            logistics_volume += min(prices)
-
-    # Labels: accepted label offers
-    labels_volume = 0.0
-    async for lr in db.label_requests.find({}, {"offers": 1}):
-        for off in lr.get("offers") or []:
-            if off.get("status") == "accepted":
-                labels_volume += float(off.get("price") or 0)
-
-    sales_commission = round(sales_volume * COMMISSION_SALES, 2)
-    logistics_commission = round(logistics_volume * COMMISSION_LOGISTICS, 2)
-    labels_commission = round(labels_volume * COMMISSION_LABELS, 2)
-    advertising = round(advertising, 2)
-    total = round(advertising + sales_commission + logistics_commission + labels_commission, 2)
-
+    sales_commission = round(o_rev + a_rev + i_rev, 2)
+    total = round(advertising + sales_commission + l_rev + lb_rev, 2)
+    svc = rules["services"]
     return {
-        "advertising": advertising,
-        "sales_volume": round(sales_volume, 2),
+        "advertising": round(advertising, 2),
+        "sales_volume": round(o_vol + a_vol + i_vol, 2),
         "sales_commission": sales_commission,
-        "logistics_volume": round(logistics_volume, 2),
-        "logistics_commission": logistics_commission,
-        "labels_volume": round(labels_volume, 2),
-        "labels_commission": labels_commission,
+        "introduction_volume": i_vol, "introduction_commission": i_rev,
+        "logistics_volume": l_vol, "logistics_commission": l_rev,
+        "labels_volume": lb_vol, "labels_commission": lb_rev,
+        "estimated_legacy": round(o_est + a_est + l_est + lb_est, 2),
         "total": total,
-        "rates": {"sales": COMMISSION_SALES, "logistics": COMMISSION_LOGISTICS, "labels": COMMISSION_LABELS},
+        "rules_version": rules["version"],
+        "rates": {
+            "sales": (svc["mediated_sale"]["buyer_pct"] + svc["mediated_sale"]["producer_pct"]) / 100,
+            "logistics": svc["transport"]["producer_pct"] / 100,
+            "labels": (svc["labels"]["producer_pct"] + svc["labels"].get("buyer_pct", 0)) / 100,
+        },
     }

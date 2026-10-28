@@ -1,0 +1,60 @@
+{
+  "summary": "Full QA pass of foundations + auth/onboarding + verification. Backend: 62 of 63 pytest pass. That covers the 4 existing suites (47/47) plus the new test_iter12_e2e_snapshots.py: B2C order snapshot with total = goods + buyer_fee; B2B negotiation to accepted agreement with commercial_snapshot; logistics quote -> select, giving a transport snapshot with producer_fee > 0; a rules change via PUT that leaves the old order snapshot and total unchanged, with rules restored afterwards; 10 permission-matrix 403 checks. Found and FIXED a 500 on GET /api/products?q=( (unescaped regex). Still open: POST /api/orders accepts blank shipping fields and fractional qty. Frontend (375x667), all requested flows PASS: forgot-password link -> success notice; reset-password with a bad token shows an error, but the generic 'Errore 422'; verify-email with a bad token shows the invalid-link notice. New logistics registration lands on /logistics/spedizioni and shows the banner and menu-onboarding. The onboarding draft resumes at step 2 with its data after reload. The ATP checklist item shows only when temperature_controlled is on. Admin verify console: segments and sheet work, reject without a reason and approve with missing docs are both blocked with a message. Rules screen lists versions and publish stays disabled until a reason is typed. Audit rows expand to before/after. Producer declarations work, the verified-badge shows, and checkout-fee shows 'Prodotti €3.90 + mediazione 3% €0.12', total €4.02. Reseller lands on /buyer/mercato with the Trattative tab, and /buyer/piani is an unmatched route. Deprecated packages detected: none (no expo-av, expo-barcode-scanner or expo-background-fetch). SafeAreaView issues detected: none.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/products?q=(", "issue": "FIXED BY T1: returned 500 (pymongo OperationFailure: invalid regex) because the raw q was used in $regex. Now re.escape(q) in routers/market.py. The same unescaped pattern still exists in routers/regulatory.py (country/category regex f'^{country}$'), lines 144, 222, 365, 485, 537, 539, 577."},
+      {"endpoint": "POST /api/orders", "issue": "OrderIn has no validation on address/city/zip/phone: blank strings are accepted and an order is created. qty accepts fractions (0.5) for piece-priced products. Add min_length and pattern rules for zip/phone. Reference: models.py:229-236."},
+      {"endpoint": "PUT /api/admin/business-rules", "issue": "Reason ('note') is optional server-side (RulesIn.note Optional). Only the UI enforces >=3 chars. The spec says publishing requires a reason, so enforce min_length on the server. Reference: routers/governance.py:46-49."},
+      {"endpoint": "POST /api/orders (package_id)", "issue": "Package orders neither check nor decrement product stock (only the items path does). Reference: routers/market.py:159-176."},
+      {"endpoint": "POST /api/auth/reset-password, /api/auth/verify-email", "issue": "A token shorter than 20 chars returns Pydantic 422 with a list detail, so frontend api.ts shows 'Errore 422' instead of 'Link non valido o scaduto'."},
+      {"endpoint": "GET /api/producers/{id}", "issue": "Needs auth (401 anonymous), so the 'public' producer page /shared/producer/<id> and its verified badge cannot be seen by logged-out visitors or shared links. Confirm this is intended."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "reset-password", "issue": "A bad or short token shows a generic 'Errore 422' notice instead of a friendly invalid-link message. Fix: map array 'detail' in src/api.ts:75 or special-case 422 on this screen.", "testID": "reset-submit", "priority": "MEDIUM"},
+      {"component": "admin verify console", "issue": "No 'Respinte' (rejected) segment. Only pending/draft/approved/suspended exist, so rejected companies are unreachable from the console. Reference: app/(app)/admin/utenti/verifica.tsx:50-52.", "testID": "admin-verify", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "admin/utenti/verifica company sheet", "issues": ["Onboarding data is shown as raw keys and values (legal_name:, vat_id:, temperature_controlled: false). Use the schema labels and Sì/No."]},
+      {"screen": "admin/audit", "issues": ["Filter chips show raw entity identifiers (business_rules, verification_document, role_permissions). Before/after is a raw JSON dump, so localise and show a diff."]},
+      {"screen": "onboarding", "issues": ["No per-step validation: an invalid VAT, or empty required fields, pass 'Continua' and are saved to the draft. The user only learns at final submit, through a single long toast."]},
+      {"screen": "logistics/profilo (new account)", "issues": ["3 stacked amber banners (verify email, complete profile, pending approval) clutter the top of the screen. Consider merging them."]},
+      {"screen": "buyer/mercato, login", "issues": ["product-add buttons are 32x32 and forgot-password-link is 32px tall, below the 44pt minimum touch target."]},
+      {"screen": "shared/producer/[id]", "issues": ["Verified badge is left-aligned while the name and location are centred."]},
+      {"screen": "producer/dichiarazioni", "issues": ["Closing date is free text (AAAA-MM-GG) with no picker or format validation hint beyond the placeholder."]},
+      {"screen": "data hygiene", "issues": ["Leftover TEST data is visible to real users: 'TEST Box Curatore' package with a broken image in the market, TEST_Shipment in the logistics list, several TEST_Buyer accounts in the admin pending queue, TEST b2b offers. Rules history contains TEST versions v2-v7. These are immutable by design; active v7 has the same values as v1."]}
+    ],
+    "react_native_issues": [
+      {"component": "shadow styles", "issue": "Web console warns '\"shadow*\" style props are deprecated. Use \"boxShadow\"' (expo log). Minor, web only."}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iter12_e2e_snapshots.py", "/app/test_reports/pytest/pytest_results.xml", "/app/test_reports/pytest/iter12.xml"],
+  "action_items": [
+    "Add validation to OrderIn: address/city/zip/phone min_length; zip and phone pattern; integer qty where unit is per piece.",
+    "Enforce the reason server-side for PUT /api/admin/business-rules (note min_length 3).",
+    "Escape the regex input in routers/regulatory.py country/category filters (re.escape).",
+    "In src/api.ts, map Pydantic list 'detail' to a readable message. On reset-password, show 'Link non valido o scaduto' for 422.",
+    "Add a 'Respinte' (rejected) tab to the admin verification console.",
+    "Localise the onboarding fields in the admin company sheet, and the audit entity chips and before/after view.",
+    "Add per-step required and pattern validation in the onboarding wizard before 'Continua'.",
+    "Package orders: check and decrement stock.",
+    "Remove TEST seed leftovers from user-facing lists (TEST Box Curatore package, TEST_Shipment, TEST_Buyer accounts, TEST offers).",
+    "Raise the touch targets of product-add (32px) and forgot-password-link (32px) to 44px."
+  ],
+  "critical_code_review_comments": [
+    "routers/market.py list_products used the user-provided q directly in $regex, which caused a 500 or ReDoS risk (fixed).",
+    "B2B agreements have no GET endpoint exposing commercial_snapshot. It was verified via the DB only. Consider an agreements list for buyer and producer.",
+    "select-quote zeroes producer_fee when a non-producer books, which is consistent with the rule. Snapshots are written once, and the conditional update on carrier_id:None makes the booking atomic.",
+    "Onboarding save mutation has no onError, so draft save failures are silent."
+  ],
+  "updated_files": ["/app/backend/routers/market.py (re.escape on products search)", "/app/backend/tests/test_iter12_e2e_snapshots.py (new)"],
+  "success_rate": {"backend": "98% (62/63; the 1 failure is the open order-validation gap)", "frontend": "100% of requested flows pass; minor UX issues listed"},
+  "seed_data_creation": "Created and then deleted: a TEST order, a TEST_iter12 b2b offer, negotiation and agreement, a TEST_iter12 shipment, and the test_logi_1793177645@example.com user with its tokens and onboarding draft. Business rules were published twice per run (change and restore). Active version is v7, with values identical to v1 (mediated_sale 3/2, introduction 0/2 window 18, transport 0/1, labels 0/1).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run pytest with -n 1 and export EXPO_PUBLIC_BACKEND_URL. test_iter12_e2e_snapshots.py creates and cleans its own data. It publishes 2 rule versions per run and restores the values (versions are immutable, so the version number grows). test_order_rejects_blank_address fails until OrderIn validation is added. /api/products needs auth. Admin console segments are labelled In coda/Bozze/Verificate/Sospese. The onboarding toggle is testID ob-temperature_controlled. Chips are ob-<field>-<option>.",
+  "rca_of_issue": "Products search 500: q was passed unescaped to MongoDB $regex, so '(' produced 'Regular expression is invalid: missing closing parenthesis' (backend.err.log). Mitigated with re.escape in routers/market.py."
+}

@@ -21,7 +21,7 @@ const DEMOS = [
 
 export default function Login() {
   const { colors } = useTheme();
-  const { t } = useT();
+  const { t, L } = useT();
   const { signIn } = useAuth();
   const router = useRouter();
   const toast = useToast();
@@ -32,12 +32,20 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  type LoginRes = { access_token: string; refresh_token: string; user: User; two_factor_required?: boolean; challenge?: string };
+  const finish = async (data: LoginRes) => {
+    if (data.two_factor_required && data.challenge) return setChallenge(data.challenge);
+    await signIn(data.access_token, data.user, data.refresh_token);
+    router.replace(homeFor(data.user.role) as any);
+  };
   const mutation = useMutation({
-    mutationFn: () => api<{ access_token: string; user: User }>("/auth/login", { method: "POST", body: { email, password } }),
-    onSuccess: async (data) => {
-      await signIn(data.access_token, data.user);
-      router.replace(homeFor(data.user.role) as any);
-    },
+    mutationFn: () =>
+      challenge
+        ? api<LoginRes>("/auth/2fa/login", { method: "POST", body: { challenge, code } })
+        : api<LoginRes>("/auth/login", { method: "POST", body: { email, password } }),
+    onSuccess: finish,
     onError: (e: Error) => setError(e.message),
   });
 
@@ -58,6 +66,14 @@ export default function Login() {
         <Field label={t("auth.password")}>
           <Input testID="login-password-input" value={password} onChangeText={setPassword} secureTextEntry />
         </Field>
+        {challenge ? (
+          <Field label={L("Codice dell'app di autenticazione (6 cifre)", "Authenticator app code (6 digits)")}>
+            <Input testID="login-2fa-code" value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} autoFocus />
+          </Field>
+        ) : null}
+        <Pressable testID="forgot-password-link" onPress={() => router.push("/forgot-password")} style={{ alignSelf: "flex-end", marginBottom: spacing.md, minHeight: 44, paddingHorizontal: spacing.xs, justifyContent: "center" }} accessibilityRole="link">
+          <Text style={[styles.linkText, { color: colors.brandPrimary }]}>{L("Password dimenticata?", "Forgot password?")}</Text>
+        </Pressable>
         {error ? (
           <Text style={styles.error} testID="login-error-text">
             {error}

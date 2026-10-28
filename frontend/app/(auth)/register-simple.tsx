@@ -43,7 +43,7 @@ export default function RegisterSimple() {
 
   const mutation = useMutation({
     mutationFn: () =>
-      api<{ access_token: string; user: User }>("/auth/register", {
+      api<{ access_token: string; refresh_token: string; user: User }>("/auth/register", {
         method: "POST",
         body: {
           email,
@@ -60,7 +60,7 @@ export default function RegisterSimple() {
         },
       }),
     onSuccess: async (data) => {
-      await signIn(data.access_token, data.user);
+      await signIn(data.access_token, data.user, data.refresh_token);
       toast.show(`${t("common.confirm")} ✓`);
       router.replace(homeFor(data.user.role) as any);
     },

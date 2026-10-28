@@ -7,6 +7,7 @@ import Ionicons from "@react-native-vector-icons/ionicons";
 
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { VerificationBanner } from "@/src/components/VerificationBanner";
 import { useCart } from "@/src/cart";
 import { Img } from "@/src/components/Img";
 import { ProductCard } from "@/src/components/ProductCard";
@@ -95,12 +96,9 @@ export default function MarketHome() {
         </Pressable>
       </View>
 
-      {user?.approved === false && (
-        <View style={[styles.pendingBox, { marginHorizontal: spacing.lg }]} testID="market-pending-banner">
-          <Ionicons name="time-outline" size={16} color={colors.onWarning} />
-          <Text style={styles.pendingText}>{t("pending.banner")}</Text>
-        </View>
-      )}
+      <View style={{ paddingHorizontal: spacing.lg }} testID="market-pending-banner">
+        <VerificationBanner />
+      </View>
       <View style={{ paddingHorizontal: spacing.lg }}>
         <Input
           testID="market-search-input"

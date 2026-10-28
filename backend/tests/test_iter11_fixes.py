@@ -14,7 +14,7 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv("/app/backend/.env")
 from security import hash_password  # noqa: E402
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL").rstrip("/")
+BASE_URL = (os.environ.get("EXPO_PUBLIC_BACKEND_URL") or "http://localhost:8001").rstrip("/")
 API = f"{BASE_URL}/api"
 db = MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
 PWD = "Demo1234!"
@@ -143,8 +143,6 @@ class TestRfq:
     def test_unapproved_producer_cannot_reply(self, ctx):
         r = requests.post(f"{API}/rfq", headers=H(ctx["business"]),
                           json={"title": "TEST_rfq approve", "quantity": "10"})
-        if r.status_code == 422:
-            pytest.skip("business already at free limit")
         rid = r.json()["id"]
         x = requests.post(f"{API}/rfq/{rid}/responses", headers=H(ctx["unapproved_producer"]), json={"message": "hi"})
         assert x.status_code == 403
@@ -152,18 +150,12 @@ class TestRfq:
         assert ok.status_code == 200 and len(ok.json()["responses"]) == 1
         requests.patch(f"{API}/rfq/{rid}/close", headers=H(ctx["business"]))
 
-    def test_free_plan_limit(self, ctx):
-        requests.post(f"{API}/buyer/plans/subscribe", headers=H(ctx["business"]), json={"plan_id": "free"})
-        existing = [x for x in requests.get(f"{API}/rfq", headers=H(ctx["business"])).json() if x["status"] == "open"]
-        created = []
-        for i in range(3 - len(existing)):
-            r = requests.post(f"{API}/rfq", headers=H(ctx["business"]), json={"title": f"TEST_rfq lim {i}", "quantity": "1"})
+    def test_no_open_request_limit(self, ctx):
+        # subscriptions removed: no plan-based limit on open requests
+        ids = []
+        for i in range(4):
+            r = requests.post(f"{API}/rfq", headers=H(ctx["business"]), json={"title": f"TEST_rfq nolimit {i}", "quantity": "1"})
             assert r.status_code == 200, r.text
-            created.append(r.json()["id"])
-        r = requests.post(f"{API}/rfq", headers=H(ctx["business"]), json={"title": "TEST_rfq lim 4", "quantity": "1"})
-        assert r.status_code == 422
-        # Pro lifts the limit
-        requests.post(f"{API}/buyer/plans/subscribe", headers=H(ctx["business"]), json={"plan_id": "pro"})
-        r2 = requests.post(f"{API}/rfq", headers=H(ctx["business"]), json={"title": "TEST_rfq pro", "quantity": "1"})
-        assert r2.status_code == 200
-        requests.post(f"{API}/buyer/plans/subscribe", headers=H(ctx["business"]), json={"plan_id": "free"})
+            ids.append(r.json()["id"])
+        for rid in ids:
+            requests.patch(f"{API}/rfq/{rid}/close", headers=H(ctx["business"]))

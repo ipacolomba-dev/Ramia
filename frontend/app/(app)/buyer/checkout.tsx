@@ -11,12 +11,13 @@ import { useCart, CartItem } from "@/src/cart";
 import { Img } from "@/src/components/Img";
 import { Btn, CenterLoader, Field, Input, Screen, ScreenHeader, useToast } from "@/src/components/ui";
 import { useT } from "@/src/i18n";
+import { startCheckout } from "@/src/payments";
 import { ThemeColors, fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import type { CuratedPackage, Order } from "@/src/types";
 
 export default function Checkout() {
   const { colors } = useTheme();
-  const { t, lang } = useT();
+  const { t, L, lang } = useT();
   const { user } = useAuth();
   const cart = useCart();
   const toast = useToast();
@@ -52,7 +53,13 @@ export default function Checkout() {
     }
   }, [user, params.package, packageQuery.data]);
 
-  const total = pkg ? pkg.price : items.reduce((s, i) => s + i.price * i.qty, 0);
+  const goods = pkg ? pkg.price : items.reduce((s, i) => s + i.price * i.qty, 0);
+  const fee = useQuery({
+    queryKey: ["fee-quote", "mediated_sale", goods],
+    queryFn: () => api<{ buyer_fee: number; buyer_pct: number }>("/fees/quote", { method: "POST", body: { service: "mediated_sale", amount: goods } }),
+    enabled: !!user && goods > 0,
+  });
+  const total = goods + (fee.data?.buyer_fee ?? 0);
 
   const order = useMutation({
     mutationFn: () =>
@@ -64,11 +71,16 @@ export default function Checkout() {
           address, city, zip, phone, notes: notes || null,
         },
       }),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setOrderId(data.id);
       if (!pkg) cart.clear();
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast.show(t("checkout.success"));
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      try {
+        await startCheckout("order", data.id);
+      } catch (e: any) {
+        toast.show(e.message, "error");
+      }
     },
     onError: (e: Error) => setError(e.message),
   });
@@ -92,8 +104,8 @@ export default function Checkout() {
           <View style={styles.successIcon}>
             <Ionicons name="checkmark" size={40} color={colors.onSuccess} />
           </View>
-          <Text style={styles.successTitle}>{t("checkout.success")}</Text>
-          <Text style={styles.successSub}>{t("checkout.successSub")}</Text>
+          <Text style={styles.successTitle}>{L("Ordine creato", "Order created")}</Text>
+          <Text style={styles.successSub}>{L("Ti portiamo al pagamento sicuro con carta. Se la pagina non si apre, puoi pagare da \"I miei ordini\".", "Redirecting to secure card payment. If it doesn't open, pay from \"My orders\".")}</Text>
           <Btn title={t("checkout.orders")} testID="checkout-view-orders" onPress={() => router.replace("/buyer/ordini")} />
           <Btn title={t("checkout.keepShopping")} variant="ghost" onPress={() => router.replace("/buyer/mercato")} style={{ marginTop: spacing.sm }} />
         </View>
@@ -197,9 +209,12 @@ export default function Checkout() {
       {displayItems.length > 0 && (
         <View style={[styles.payBar, { paddingBottom: insets.bottom + spacing.md }]} testID="checkout-pay-bar">
           <View style={{ flex: 1 }}>
+            {fee.data && fee.data.buyer_fee > 0 ? (
+              <Text style={styles.simulated} testID="checkout-fee">{L(`Prodotti €${goods.toFixed(2)} + mediazione ${fee.data.buyer_pct}% €${fee.data.buyer_fee.toFixed(2)}`, `Goods €${goods.toFixed(2)} + ${fee.data.buyer_pct}% mediation €${fee.data.buyer_fee.toFixed(2)}`)}</Text>
+            ) : null}
             <Text style={styles.totalLabel}>{t("common.total")}</Text>
             <Text style={styles.totalValue}>€{total.toFixed(2)}</Text>
-            <Text style={styles.simulated}>{t("orders.simulated")}</Text>
+            <Text style={styles.simulated}>{L("Carta · fondi in garanzia fino alla consegna", "Card · funds held until delivery")}</Text>
           </View>
           <Btn
             title={t("checkout.pay")}

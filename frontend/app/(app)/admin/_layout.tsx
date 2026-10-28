@@ -13,7 +13,7 @@ export default function AdminLayout() {
         { name: "moderazione", label: ["Moderazione", "Moderation"], icon: "flag" },
         { name: "profilo", label: ["Profilo", "Profile"], icon: "person" },
       ]}
-      hidden={["categorie", "incassi"]}
+      hidden={["categorie", "incassi", "regole", "audit", "pagamenti", "match"]}
     />
   );
 }

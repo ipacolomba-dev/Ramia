@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { useQueryClient } from "@tanstack/react-query";
 import { ActivityIndicator, View } from "react-native";
 
-import { api, TOKEN_KEY } from "@/src/api";
+import { REFRESH_KEY, TOKEN_KEY, api, setAuthListener } from "@/src/api";
 import { registerForPush } from "@/src/push";
 import { useTheme } from "@/src/theme";
 import type { User } from "@/src/types";
@@ -12,7 +12,7 @@ interface AuthCtx {
   token: string | null;
   user: User | null;
   loading: boolean;
-  signIn: (token: string, user: User) => Promise<void>;
+  signIn: (token: string, user: User, refreshToken?: string) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -37,8 +37,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const t = await storage.secureGet(TOKEN_KEY, "");
       if (t) {
         try {
-          const u = await api<User>("/auth/me", { token: t });
-          setToken(t);
+          const u = await api<User>("/auth/me");
+          setToken((await storage.secureGet(TOKEN_KEY, "")) || t);
           setUser(u);
           registerForPush(u.id);
         } catch {
@@ -49,14 +49,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  const signIn = useCallback(async (t: string, u: User) => {
+  useEffect(() => {
+    // api() rotated the tokens or the session expired
+    setAuthListener((t) => {
+      setToken(t);
+      if (!t) setUser(null);
+    });
+  }, []);
+
+  const signIn = useCallback(async (t: string, u: User, refreshToken?: string) => {
     await storage.secureSet(TOKEN_KEY, t);
+    if (refreshToken) await storage.secureSet(REFRESH_KEY, refreshToken);
     setToken(t);
     setUser(u);
     registerForPush(u.id);
   }, []);
 
   const signOut = useCallback(async () => {
+    const rt = await storage.secureGet(REFRESH_KEY, "");
+    if (rt) api("/auth/logout", { method: "POST", body: { refresh_token: rt } }).catch(() => {});
+    await storage.secureRemove(REFRESH_KEY);
     await storage.secureRemove(TOKEN_KEY);
     setToken(null);
     setUser(null);
