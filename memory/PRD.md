@@ -132,3 +132,6 @@ Registro Match append-only con hash; motore regole v2 (scope/promo/simulatore); 
 - Motore logistico (`routers/rates.py`): tariffari vettori CRUD, preventivo immediato con forbice prezzi e breakdown, prenotazione da tariffa, POD obbligatoria su "consegnato" che rilascia l'escrow al vettore.
 - UI: /pagamento, buyer/ordini (paga/annulla/conferma/contesta), producer+logistics incassi (Payouts), logistics/tariffe, spedizioni/preventivo, admin/pagamenti, admin/match.
 - Dati fiscali 'Ra mia: segnaposto (da fornire).
+
+## Fix login (iterazione 14)
+- Causa: backend/.env MONGO_URL corrotto ("localholast") → backend non partiva → login 502. Ripristinato "mongodb://localhost:27017". Login produttore/admin verificati via browser.

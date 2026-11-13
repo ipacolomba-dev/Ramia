@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from db import client, db
 from core import matches as matches_core, permissions as perms_core, rules as rules_core, tokens as tokens_core
-from routers import accounts, admin, advisor, auth, b2b, governance, imports, logistics, market, payments, platform, profiles, push, rates, regulatory, trade, uploads
+from routers import accounts, admin, advisor, auth, b2b, governance, imports, logistics, market, payments, platform, profiles, push, rates, regulatory, settings, trade, uploads
 from seed import seed, seed_extras
 from seed_regulatory import seed_regulatory
 from storage import init_storage
@@ -30,6 +30,7 @@ async def lifespan(app: FastAPI):
     await rules_core.seed_rules()
     await perms_core.seed_permissions()
     await governance.seed_visibility()
+    await settings.seed_legal()
     await tokens_core.ensure_indexes()
     await accounts.seed_accounts()
     accounts.start_expiry_job()
@@ -79,11 +80,12 @@ app.include_router(governance.router, prefix=api_router_prefix)
 app.include_router(accounts.router, prefix=api_router_prefix)
 app.include_router(payments.router, prefix=api_router_prefix)
 app.include_router(rates.router, prefix=api_router_prefix)
+app.include_router(settings.router, prefix=api_router_prefix)
 
 
 @app.get("/api")
 async def root():
-    return {"message": "Sapori di Sicilia API", "status": "ok"}
+    return {"message": "’Ra mia API", "status": "ok"}
 
 
 @app.get("/api/health")
